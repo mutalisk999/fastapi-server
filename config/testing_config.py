@@ -20,3 +20,5 @@ class TestingConfig(BaseConfig):
         TestingConfig.DATABASE_PORT = int(os.environ.get("DATABASE_PORT", 3306))
         TestingConfig.DATABASE_NAME = os.environ.get("DATABASE_NAME")
         TestingConfig.DATABASE_CHARSET = os.environ.get("DATABASE_CHARSET")
+
+        TestingConfig.REDIS_URL = os.environ.get("REDIS_URL")

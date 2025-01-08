@@ -12,6 +12,7 @@ mypy = "0.910"
 python-dotenv = "0.20.0"
 pyaes = "1.6.1"
 pyjwt = "2.8.0"
+redis = "5.0.1"
 
 [dev-packages]
 

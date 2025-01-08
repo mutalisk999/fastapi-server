@@ -12,3 +12,5 @@ class BaseConfig(object):
     DATABASE_PORT: int
     DATABASE_NAME: Optional[str]
     DATABASE_CHARSET: Optional[str]
+
+    REDIS_URL: Optional[str]

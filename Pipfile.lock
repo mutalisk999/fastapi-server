@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "00a36054805af9f2fd3b6e26e34a711bcb6ddb1f358a05dcb3fddeb3a1d6aa98"
+            "sha256": "09ed0c94962152b16c28f8b871d4744caac3555d44e843ecb726f73114113b8a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -39,6 +39,14 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==3.8.1"
+        },
+        "async-timeout": {
+            "hashes": [
+                "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c",
+                "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"
+            ],
+            "markers": "python_full_version <= '3.11.2'",
+            "version": "==5.0.1"
         },
         "click": {
             "hashes": [
@@ -280,6 +288,15 @@
             "index": "pypi",
             "markers": "python_version >= '3.5'",
             "version": "==0.20.0"
+        },
+        "redis": {
+            "hashes": [
+                "sha256:0dab495cd5753069d3bc650a0dde8a8f9edde16fc5691b689a566eda58100d0f",
+                "sha256:ed4802971884ae19d640775ba3b03aa2e7bd5e8fb8dfaed2decce4d0fc48391f"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.7'",
+            "version": "==5.0.1"
         },
         "sniffio": {
             "hashes": [
