@@ -13,6 +13,7 @@ python-dotenv = "0.20.0"
 pyaes = "1.6.1"
 pyjwt = "2.8.0"
 redis = "5.0.1"
+captcha = "0.6.0"
 
 [dev-packages]
 
