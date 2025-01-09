@@ -12,15 +12,14 @@ from database.connector import ReconnectMySQLDatabase
 from utils.authentication import AuthHandler
 from utils.crypto_tools import Aes128Ctr
 
-import redis
-from redis import Redis
+from utils.redis_client import RedisClient
 
 
 class Application(object):
     setting: Union[DevelopmentConfig, TestingConfig, ProductionConfig, None] = None
     config_pass: str = ""
     global_stop: bool = False
-    redis_client: Union[Redis, None] = None
+    redis_client: Union[RedisClient, None] = None
     thread_running_dict: Dict = {}
 
     @staticmethod
@@ -29,7 +28,9 @@ class Application(object):
         setting.initialize()
         Application.setting = setting
         Application.config_pass = config_pass
-        Application.redis_client = redis.from_url(url=setting.REDIS_URL)
+        Application.redis_client = RedisClient(url=setting.REDIS_URL)
+        r = Application.redis_client.ping()
+        print(r)
 
         aes128 = Aes128Ctr(Application.config_pass.encode("ascii"))
         database_pass = aes128.aes128_ctr_decrypt(setting.DATABASE_PASS)
