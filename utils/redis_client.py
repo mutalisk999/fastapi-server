@@ -1,33 +1,34 @@
 #!/usr/bin/env python
 # encoding: utf-8
-from typing import Any
+from typing import Any, Optional
 
 import redis
-from redis.client import Redis
+from redis import ConnectionPool
+from redis.client import Redis, StrictRedis
 
 
 class RedisClient(object):
-    def __init__(self, url: str = "redis://127.0.0.1:6379"):
-        self.client: Redis = redis.from_url(url=url)
-        self.client.ping()
+    def __init__(self, url: str = "redis://127.0.0.1:6379/0", max_connections: int = 10):
+        self.client_pool: ConnectionPool = redis.ConnectionPool.from_url(url=url, max_connections=max_connections)
 
     def get(self, key: str) -> Any:
-        self.client.ping()
-        return self.client.get(key)
+        redis_conn: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
+        redis_conn.ping()
+        return redis_conn.get(key)
 
     def set(self, key: str, value: Any, expire: int = 0):
-        self.client.ping()
-        self.client.set(key, value)
+        redis_conn: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
+        redis_conn.ping()
+        redis_conn.set(key, value)
         if expire > 0:
-            self.client.expire(key, expire)
+            redis_conn.expire(key, expire)
 
     def delete(self, key: str):
-        self.client.ping()
-        self.client.delete(key)
+        redis_conn: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
+        redis_conn.ping()
+        redis_conn.delete(key)
 
     def expire(self, key: str, expire: int):
-        self.client.ping()
-        self.client.expire(key, expire)
-
-    def ping(self):
-        return self.client.ping()
+        redis_conn: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
+        redis_conn.ping()
+        redis_conn.expire(key, expire)

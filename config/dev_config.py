@@ -20,5 +20,6 @@ class DevelopmentConfig(BaseConfig):
         DevelopmentConfig.DATABASE_PORT = int(os.environ.get("DATABASE_PORT", 3306))
         DevelopmentConfig.DATABASE_NAME = os.environ.get("DATABASE_NAME")
         DevelopmentConfig.DATABASE_CHARSET = os.environ.get("DATABASE_CHARSET")
+        DevelopmentConfig.DATABASE_POOL_SIZE = int(os.environ.get("DATABASE_POOL_SIZE", 5))
 
         DevelopmentConfig.REDIS_URL = os.environ.get("REDIS_URL")

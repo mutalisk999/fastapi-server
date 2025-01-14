@@ -3,6 +3,7 @@
 
 from abc import ABC
 from peewee import MySQLDatabase, InterfaceError, SENTINEL  # type: ignore
+from playhouse.pool import PooledMySQLDatabase
 from playhouse.shortcuts import ReconnectMixin  # type: ignore
 
 
@@ -31,4 +32,8 @@ class ReconnectMixinNew(ReconnectMixin):
 
 
 class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase, ABC):
+    pass
+
+
+class ReconnectPooledMySQLDatabase(ReconnectMixinNew, PooledMySQLDatabase, ABC):
     pass

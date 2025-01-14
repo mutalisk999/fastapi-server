@@ -20,5 +20,6 @@ class ProductionConfig(BaseConfig):
         ProductionConfig.DATABASE_PORT = int(os.environ.get("DATABASE_PORT", 3306))
         ProductionConfig.DATABASE_NAME = os.environ.get("DATABASE_NAME")
         ProductionConfig.DATABASE_CHARSET = os.environ.get("DATABASE_CHARSET")
+        ProductionConfig.DATABASE_POOL_SIZE = int(os.environ.get("DATABASE_POOL_SIZE", 20))
 
         ProductionConfig.REDIS_URL = os.environ.get("REDIS_URL")

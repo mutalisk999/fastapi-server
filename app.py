@@ -2,17 +2,29 @@
 # encoding: utf-8
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from config import DevelopmentConfig, ProductionConfig, TestingConfig, configs
 from typing import Union, Dict
 
 from controller import mock_router
 from database import database_proxy
-from database.connector import ReconnectMySQLDatabase
+from database.connector import ReconnectMySQLDatabase, ReconnectPooledMySQLDatabase
 from utils.authentication import AuthHandler
 from utils.crypto_tools import Aes128Ctr
 
 from utils.redis_client import RedisClient
+
+
+async def db_session_middleware(request: Request, call_next):
+    response = Response("Internal server error", status_code=500)
+    try:
+        request.state.db = database_proxy.connection_context()
+        response = await call_next(request)
+    finally:
+        request.state.db.close()
+    return response
 
 
 class Application(object):
@@ -28,9 +40,7 @@ class Application(object):
         setting.initialize()
         Application.setting = setting
         Application.config_pass = config_pass
-        Application.redis_client = RedisClient(url=setting.REDIS_URL)
-        r = Application.redis_client.ping()
-        print(r)
+        Application.redis_client = RedisClient(url=setting.REDIS_URL, max_connections=10)
 
         aes128 = Aes128Ctr(Application.config_pass.encode("ascii"))
         database_pass = aes128.aes128_ctr_decrypt(setting.DATABASE_PASS)
@@ -38,15 +48,25 @@ class Application(object):
         jwt_secret = aes128.aes128_ctr_decrypt(setting.JWT_SECRET)
         AuthHandler.initialize(jwt_secret)
 
-        db = ReconnectMySQLDatabase(
-            setting.DATABASE_NAME, autocommit=False, autorollback=False,
-            **{'host': setting.DATABASE_HOST, 'port': setting.DATABASE_PORT,
-               'user': setting.DATABASE_USER,
-               'password': database_pass,
-               'use_unicode': True,
-               'charset': setting.DATABASE_CHARSET})
-
-        database_proxy.initialize(db)
+        if setting.DATABASE_POOL_SIZE <= 1:
+            db = ReconnectMySQLDatabase(
+                setting.DATABASE_NAME, autocommit=False, autorollback=False,
+                **{'host': setting.DATABASE_HOST, 'port': setting.DATABASE_PORT,
+                   'user': setting.DATABASE_USER,
+                   'password': database_pass,
+                   'use_unicode': True,
+                   'charset': setting.DATABASE_CHARSET})
+            database_proxy.initialize(db)
+        else:
+            db_pool = ReconnectPooledMySQLDatabase(
+                setting.DATABASE_NAME, max_connections=setting.DATABASE_POOL_SIZE,
+                stale_timeout=300, autocommit=False, autorollback=False,
+                **{'host': setting.DATABASE_HOST, 'port': setting.DATABASE_PORT,
+                   'user': setting.DATABASE_USER,
+                   'password': database_pass,
+                   'use_unicode': True,
+                   'charset': setting.DATABASE_CHARSET})
+            database_proxy.initialize(db_pool)
 
         app = FastAPI()
         api_router = APIRouter()
@@ -54,6 +74,6 @@ class Application(object):
         app.include_router(prefix="/api", router=api_router)
         app.add_middleware(CORSMiddleware, allow_origins=["*"],
                            allow_credentials=True, allow_methods=["*"],
-                           allow_headers=["*"],
-                           )
+                           allow_headers=["*"])
+        app.middleware('http')(db_session_middleware)
         return app
