@@ -12,7 +12,7 @@ from controller import mock_router
 from database import database_proxy
 from database.connector import ReconnectMySQLDatabase, ReconnectPooledMySQLDatabase
 from utils.authentication import AuthHandler
-from utils.crypto_tools import Aes128Ctr
+from utils.crypto_tools import Aes128Cbc
 
 from utils.redis_client import RedisClient
 
@@ -42,10 +42,10 @@ class Application(object):
         Application.config_pass = config_pass
         Application.redis_client = RedisClient(url=setting.REDIS_URL, max_connections=10)
 
-        aes128 = Aes128Ctr(Application.config_pass.encode("ascii"))
-        database_pass = aes128.aes128_ctr_decrypt(setting.DATABASE_PASS)
+        aes128 = Aes128Cbc(Application.config_pass.encode("ascii"))
+        database_pass = aes128.aes128_cbc_decrypt(setting.DATABASE_PASS)
 
-        jwt_secret = aes128.aes128_ctr_decrypt(setting.JWT_SECRET)
+        jwt_secret = aes128.aes128_cbc_decrypt(setting.JWT_SECRET)
         AuthHandler.initialize(jwt_secret)
 
         if setting.DATABASE_POOL_SIZE <= 1:
