@@ -8,6 +8,19 @@ import random
 from captcha.image import ImageCaptcha
 
 
+class ImageCaptchaSingleton:
+    _instance = None
+    
+    def __new__(cls, width=100, height=40, font_sizes=(30,)):
+        if cls._instance is None:
+            cls._instance = super(ImageCaptchaSingleton, cls).__new__(cls)
+            cls._instance.captcha = ImageCaptcha(width=width, height=height, font_sizes=font_sizes)
+        return cls._instance
+    
+    def generate_image(self, captcha_code: str):
+        return self.captcha.generate_image(captcha_code)
+
+
 def generate_random_string(gen_type: int = 1, size: int = 4):
     if gen_type == 1:
         choice = string.digits
@@ -19,7 +32,7 @@ def generate_random_string(gen_type: int = 1, size: int = 4):
 
 
 def get_image_captcha(captcha_code: str) -> bytes:
-    ic = ImageCaptcha(width=100, height=40, font_sizes=(30,))
+    ic = ImageCaptchaSingleton()
     image = ic.generate_image(captcha_code)
     img_bytes = io.BytesIO()
     image.save(img_bytes, format="JPEG")

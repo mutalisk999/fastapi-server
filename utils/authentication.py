@@ -1,59 +1,83 @@
 #!/usr/bin/env python
 # encoding: utf-8
-
-
 import jwt
 
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import Security
+from typing import Optional, Dict, Any
+from fastapi import Security, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.requests import Request
+from utils.logger import logger
 
 ALGORITHM = "HS256"
 
 
 class AuthHandler(object):
-    security = HTTPBearer()
-    secret = None
+    def __init__(self, secret: str = None):
+        self.security = HTTPBearer()
+        self.secret = secret
 
-    @staticmethod
-    def initialize(secret: str):
-        AuthHandler.secret = secret
+    def initialize(self, secret: str):
+        """Initialize the auth handler with a secret"""
+        self.secret = secret
 
     # encode jwt token
-    @staticmethod
-    def encode_token(payload: dict):
-        return jwt.encode(payload, AuthHandler.secret, algorithm=ALGORITHM)
+    def encode_token(self, payload: dict) -> str:
+        """Encode a JWT token"""
+        try:
+            if not self.secret:
+                raise ValueError("Secret not initialized")
+            return jwt.encode(payload, self.secret, algorithm=ALGORITHM)
+        except Exception as e:
+            logger.error(f"Error encoding token: {e}")
+            raise
 
-    @staticmethod
-    def generate_token(identity: str, expiration_sec: int = 86400 * 7):
-        payload = {
-            'exp': datetime.utcnow() + timedelta(seconds=expiration_sec),
-            'iat': datetime.utcnow(),
-            'sub': identity,
-        }
-        token = AuthHandler.encode_token(payload)
-        return token
+    def generate_token(self, identity: str, expiration_sec: int = 86400 * 7) -> str:
+        """Generate a JWT token for a user"""
+        try:
+            payload = {
+                'exp': datetime.utcnow() + timedelta(seconds=expiration_sec),
+                'iat': datetime.utcnow(),
+                'sub': identity,
+            }
+            token = self.encode_token(payload)
+            return token
+        except Exception as e:
+            logger.error(f"Error generating token: {e}")
+            raise
 
     # decode jwt token
-    @staticmethod
-    def decode_token(token: str) -> Optional[dict]:
+    def decode_token(self, token: str) -> Optional[dict]:
+        """Decode and verify a JWT token"""
         try:
-            payload = jwt.decode(token, AuthHandler.secret, algorithms=[ALGORITHM])
+            if not self.secret:
+                raise ValueError("Secret not initialized")
+            payload = jwt.decode(token, self.secret, algorithms=[ALGORITHM])
             return payload
         except jwt.ExpiredSignatureError:
+            logger.warning("Token has expired")
             return None
         except jwt.InvalidTokenError:
+            logger.warning("Invalid token")
+            return None
+        except Exception as e:
+            logger.error(f"Error decoding token: {e}")
             return None
 
-    @staticmethod
-    def verify_token(token: str) -> Optional[dict]:
-        payload = AuthHandler.decode_token(token)
+    def verify_token(self, token: str) -> Optional[dict]:
+        """Verify a JWT token"""
+        payload = self.decode_token(token)
         if payload is None:
             return None
         return payload
 
-    @staticmethod
-    def auth_wrapper(_: Request, oauth: HTTPAuthorizationCredentials = Security(security)) -> Optional[dict]:
-        return AuthHandler.verify_token(oauth.credentials)
+    def auth_wrapper(self, _: Request, oauth: HTTPAuthorizationCredentials = Security(HTTPBearer())) -> dict:
+        """Auth wrapper for FastAPI dependencies"""
+        payload = self.verify_token(oauth.credentials)
+        if payload is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return payload
+
+
+# Create a global auth handler instance
+auth_handler = AuthHandler()

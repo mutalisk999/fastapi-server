@@ -173,3 +173,5 @@ cython_debug/
 .env.dev
 .env.testing
 .env.prod
+
+.idea/
