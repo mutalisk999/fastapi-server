@@ -17,6 +17,7 @@ captcha = "*"
 pydantic = "*"
 pydantic-settings = "*"
 playhouse = "*"
+bcrypt = "*"
 
 
 [dev-packages]

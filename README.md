@@ -54,24 +54,34 @@ fastapi-server/
    ```
 
 3. **Configure environment variables**:
-   Create a `.env` file in the project root directory with the following variables:
+   - Create a `.env` file in the project root directory with the following variable:
+     ```
+     # Environment configuration
+     USE_CONFIG=development
+     ```
+   - Create environment-specific configuration files:
+     - `.env.dev` for development environment
+     - `.env.testing` for testing environment
+     - `.env.prod` for production environment
+
+   Example of environment-specific configuration file (e.g., `.env.dev`):
    ```
+   # JWT configuration
+   JWT_SECRET=dev_jwt_secret_key
+
    # Database configuration
-   DATABASE_USER=your_database_user
-   DATABASE_PASS=your_encrypted_database_password
+   DATABASE_USER=root
+   DATABASE_PASS=dev_password
    DATABASE_HOST=localhost
    DATABASE_PORT=3306
-   DATABASE_NAME=your_database_name
+   DATABASE_NAME=dev_db
    DATABASE_CHARSET=utf8mb4
    DATABASE_POOL_SIZE=5
 
    # Redis configuration
    REDIS_URL=redis://localhost:6379/0
 
-   # JWT configuration
-   JWT_SECRET=your_encrypted_jwt_secret
-
-   # Logger configuration
+   # Log configuration
    LOG_FILE_NAME=app.log
    LOG_LEVEL=INFO
    LOG_FILE_SIZE=10485760
@@ -92,12 +102,60 @@ fastapi-server/
 
 ### Configuration
 
-The application supports three environments:
+The application uses a two-level configuration system:
+
+1. **Base configuration** (`env`): Contains only the `USE_CONFIG` variable to specify which environment configuration to use.
+2. **Environment-specific configuration**: Contains all business-related configuration for each environment.
+
+### Supported Environments
+
 - **Development**: Uses `.env.dev` file
 - **Testing**: Uses `.env.testing` file
 - **Production**: Uses `.env.prod` file
 
-You can specify the environment by setting the `USE_CONFIG` environment variable:
+### Configuration Files
+
+- **`.env`**: Only contains the `USE_CONFIG` variable to specify the environment.
+- **`.env.dev`**: Development environment configuration.
+- **`.env.testing`**: Testing environment configuration.
+- **`.env.prod`**: Production environment configuration.
+
+### Example Configuration
+
+#### `.env` file:
+```
+# Environment configuration
+USE_CONFIG=development
+```
+
+#### Environment-specific configuration (e.g., `.env.dev`):
+```
+# JWT configuration
+JWT_SECRET=dev_jwt_secret_key
+
+# Database configuration
+DATABASE_USER=root
+DATABASE_PASS=dev_password
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+DATABASE_NAME=dev_db
+DATABASE_CHARSET=utf8mb4
+DATABASE_POOL_SIZE=5
+
+# Redis configuration
+REDIS_URL=redis://localhost:6379/0
+
+# Log configuration
+LOG_FILE_NAME=app.log
+LOG_LEVEL=INFO
+LOG_FILE_SIZE=10485760
+LOG_BACKUP_COUNT=5
+```
+
+### Specifying Environment
+
+You can specify the environment by setting the `USE_CONFIG` environment variable in the `.env` file, or by passing it as a command-line argument:
+
 ```bash
 USE_CONFIG=production pipenv run python api_server.py
 ```

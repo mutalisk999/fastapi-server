@@ -27,5 +27,4 @@ class BaseConfig(BaseSettings):
     LOG_BACKUP_COUNT: int = 5
     
     class Config:
-        env_file = ".env"
         case_sensitive = True

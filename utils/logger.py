@@ -2,9 +2,23 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-from app import Application
-
 logger = None
+
+# Initialize a default logger at module level
+def _init_default_logger():
+    global logger
+    if logger is None:
+        logger = logging.getLogger()
+        console_handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        console_handler.setFormatter(formatter)
+        logger.setLevel(logging.INFO)
+        logger.addHandler(console_handler)
+
+# Initialize default logger when module is imported
+_init_default_logger()
 
 def setup_logger(log_level, log_file_name, log_file_size, log_backup_count):
     logger = logging.getLogger()
@@ -43,6 +57,9 @@ def setup_logger(log_level, log_file_name, log_file_size, log_backup_count):
 
 def init_logger():
     global logger
+
+    # Import Application here to avoid circular import
+    from app import Application
 
     # Get log level
     log_level = logging.INFO
