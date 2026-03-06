@@ -3,9 +3,13 @@
 
 from abc import ABC
 from peewee import InterfaceError, SENTINEL  # type: ignore
-from peewee import MySQLDatabase, PostgresqlDatabase
+from peewee import SqliteDatabase, MySQLDatabase, PostgresqlDatabase
 from playhouse.shortcuts import ReconnectMixin  # type: ignore
-from playhouse.pool import PooledMySQLDatabase, PooledPostgresqlDatabase
+from playhouse.pool import (
+    PooledSqliteDatabase,
+    PooledMySQLDatabase,
+    PooledPostgresqlDatabase,
+)
 
 
 class ReconnectMixinNew(ReconnectMixin):
@@ -14,7 +18,10 @@ class ReconnectMixinNew(ReconnectMixin):
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
         except Exception as exc:
             exc_class = type(exc)
-            if exc_class not in self._reconnect_errors and exc_class is not InterfaceError:
+            if (
+                exc_class not in self._reconnect_errors
+                and exc_class is not InterfaceError
+            ):
                 raise exc
 
             if exc_class in self._reconnect_errors:
@@ -30,6 +37,14 @@ class ReconnectMixinNew(ReconnectMixin):
                 self.connect()
 
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
+
+
+class ReconnectSqliteDatabase(ReconnectMixinNew, SqliteDatabase, ABC):
+    pass
+
+
+class ReconnectPooledSqliteDatabase(ReconnectMixinNew, PooledSqliteDatabase, ABC):
+    pass
 
 
 class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase, ABC):
