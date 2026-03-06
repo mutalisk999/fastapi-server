@@ -2,9 +2,10 @@
 # encoding: utf-8
 
 from abc import ABC
-from peewee import MySQLDatabase, InterfaceError, SENTINEL  # type: ignore
-from playhouse.pool import PooledMySQLDatabase
+from peewee import InterfaceError, SENTINEL  # type: ignore
+from peewee import MySQLDatabase, PostgresqlDatabase
 from playhouse.shortcuts import ReconnectMixin  # type: ignore
+from playhouse.pool import PooledMySQLDatabase, PooledPostgresqlDatabase
 
 
 class ReconnectMixinNew(ReconnectMixin):
@@ -36,4 +37,12 @@ class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase, ABC):
 
 
 class ReconnectPooledMySQLDatabase(ReconnectMixinNew, PooledMySQLDatabase, ABC):
+    pass
+
+
+class ReconnectPostgresqlDatabase(ReconnectMixinNew, PostgresqlDatabase, ABC):
+    pass
+
+
+class ReconnectPooledPostgresqlDatabase(ReconnectMixinNew, PooledPostgresqlDatabase, ABC):
     pass
