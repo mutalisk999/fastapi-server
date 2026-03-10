@@ -36,8 +36,8 @@ class AuthHandler(object):
         """Generate a JWT token for a user"""
         try:
             payload = {
-                'exp': datetime.utcnow() + timedelta(seconds=expiration_sec),
-                'iat': datetime.utcnow(),
+                'exp': datetime.now(timezone.utc) + timedelta(seconds=expiration_sec),
+                'iat': datetime.now(timezone.utc),
                 'sub': identity,
             }
             token = self.encode_token(payload)
