@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-from abc import ABC
 from peewee import InterfaceError, SENTINEL  # type: ignore
 from peewee import SqliteDatabase, MySQLDatabase, PostgresqlDatabase
 from playhouse.shortcuts import ReconnectMixin  # type: ignore
@@ -39,25 +38,25 @@ class ReconnectMixinNew(ReconnectMixin):
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
 
 
-class ReconnectSqliteDatabase(ReconnectMixinNew, SqliteDatabase, ABC):
+class ReconnectSqliteDatabase(ReconnectMixinNew, SqliteDatabase):
     pass
 
 
-class ReconnectPooledSqliteDatabase(ReconnectMixinNew, PooledSqliteDatabase, ABC):
+class ReconnectPooledSqliteDatabase(ReconnectMixinNew, PooledSqliteDatabase):
     pass
 
 
-class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase, ABC):
+class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase):
     pass
 
 
-class ReconnectPooledMySQLDatabase(ReconnectMixinNew, PooledMySQLDatabase, ABC):
+class ReconnectPooledMySQLDatabase(ReconnectMixinNew, PooledMySQLDatabase):
     pass
 
 
-class ReconnectPostgresqlDatabase(ReconnectMixinNew, PostgresqlDatabase, ABC):
+class ReconnectPostgresqlDatabase(ReconnectMixinNew, PostgresqlDatabase):
     pass
 
 
-class ReconnectPooledPostgresqlDatabase(ReconnectMixinNew, PooledPostgresqlDatabase, ABC):
+class ReconnectPooledPostgresqlDatabase(ReconnectMixinNew, PooledPostgresqlDatabase):
     pass

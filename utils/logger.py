@@ -21,6 +21,7 @@ def _init_default_logger():
 _init_default_logger()
 
 def setup_logger(log_level, log_file_name, log_file_size, log_backup_count):
+    global logger
     logger = logging.getLogger()
     
     # Clear existing handlers to avoid duplication

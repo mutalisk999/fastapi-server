@@ -13,6 +13,7 @@ class NamedThread(threading.Thread):
         self.function_ptr = function_ptr
         self.status = "created"  # created, running, completed, error
         self.error = None
+        self._stop_flag = threading.Event()
 
     def run(self):
         try:
@@ -25,6 +26,14 @@ class NamedThread(threading.Thread):
             self.status = "error"
             self.error = str(e)
             logger.error(f"Thread {self.name} (ID: {self.thread_id}) failed with error: {e}")
+
+    def stop(self):
+        """Signal the thread to stop"""
+        self._stop_flag.set()
+
+    def is_stopping(self):
+        """Check if the thread has been signaled to stop"""
+        return self._stop_flag.is_set()
 
     def get_status(self):
         """Get the current status of the thread"""

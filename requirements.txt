@@ -1,0 +1,24 @@
+# FastAPI Server Requirements
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Configuration & Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# Database
+peewee>=3.17.0
+
+# Redis
+redis>=5.0.0
+
+# Authentication & Security
+PyJWT>=2.8.0
+bcrypt>=4.1.0
+pyaes>=1.6.1
+
+# Captcha
+captcha>=0.4

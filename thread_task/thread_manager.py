@@ -23,7 +23,6 @@ class ThreadManager:
             thread.daemon = True  # Make thread daemon so it doesn't block shutdown
             thread.start()
             self.threads[thread_id] = thread
-            Application.thread_running_dict[thread_id] = thread
             logger.info(f"Started thread: {name} (ID: {thread_id})")
             return True
         except Exception as e:
@@ -31,28 +30,26 @@ class ThreadManager:
             return False
     
     def stop_thread(self, thread_id: str) -> bool:
-        """Stop a thread"""
+        """Stop a specific thread"""
         try:
             if thread_id not in self.threads:
                 logger.warning(f"Thread with ID {thread_id} does not exist")
                 return False
-            
+
             thread = self.threads[thread_id]
             logger.info(f"Stopping thread: {thread.name} (ID: {thread_id})")
-            # Set global stop flag
-            Application.global_stop = True
+            # Signal the thread to stop
+            thread.stop()
             # Wait for thread to stop
             thread.join(timeout=5)
             if thread.is_alive():
                 logger.warning(f"Thread {thread_id} did not stop within timeout")
             else:
                 logger.info(f"Thread {thread_id} stopped successfully")
-            
-            # Remove from dictionaries
+
+            # Remove from threads dictionary
             del self.threads[thread_id]
-            if thread_id in Application.thread_running_dict:
-                del Application.thread_running_dict[thread_id]
-            
+
             return True
         except Exception as e:
             logger.error(f"Error stopping thread: {e}")

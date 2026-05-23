@@ -14,7 +14,7 @@ class AuthService:
         try:
             # Initialize auth_handler if not already initialized
             if not auth_handler.secret:
-                auth_handler.initialize("test_jwt_secret_key")
+                raise ValueError("Auth handler not initialized. Please configure JWT_SECRET")
             
             # This should be the logic to get user information from the database
             # Temporarily return mock data
@@ -44,7 +44,7 @@ class AuthService:
         try:
             # Initialize auth_handler if not already initialized
             if not auth_handler.secret:
-                auth_handler.initialize("test_jwt_secret_key")
+                raise ValueError("Auth handler not initialized. Please configure JWT_SECRET")
             
             # Verify token
             payload = auth_handler.verify_token(token)
@@ -64,7 +64,7 @@ class AuthService:
         try:
             # Initialize auth_handler if not already initialized
             if not auth_handler.secret:
-                auth_handler.initialize("test_jwt_secret_key")
+                raise ValueError("Auth handler not initialized. Please configure JWT_SECRET")
             
             # Verify old token
             payload = auth_handler.verify_token(token)

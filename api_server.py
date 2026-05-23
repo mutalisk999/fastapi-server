@@ -57,7 +57,11 @@ if __name__ == "__main__":
     thread_run()
 
     try:
-        uvicorn.run(app, host="0.0.0.0", port=7788)
+        uvicorn.run(
+            app,
+            host=Application.setting.SERVER_HOST,
+            port=Application.setting.SERVER_PORT
+        )
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received")
         handle_sig(signal.SIGINT, None)
