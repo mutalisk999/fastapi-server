@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile main.py)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/ -v --tb=short)"
+    ]
+  }
+}

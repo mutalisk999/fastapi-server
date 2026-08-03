@@ -4,6 +4,4 @@ from config.base_config import BaseConfig
 
 
 class DevelopmentConfig(BaseConfig):
-    class Config:
-        env_file = ".env.dev"
-        case_sensitive = True
+    model_config = {"case_sensitive": True, "env_file": ".env.dev"}

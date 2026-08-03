@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 from typing import Optional, Dict, Any
+from datetime import datetime, timezone
 from utils.authentication import auth_handler
 from utils.password_tools import password_tools
 from utils.logger import logger
@@ -8,7 +9,7 @@ from utils.logger import logger
 
 class AuthService:
     """Authentication service class, handling authentication-related business logic"""
-    
+
     def _ensure_initialized(self):
         """Ensure auth_handler is initialized, raise if not"""
         if not auth_handler.secret:
@@ -75,7 +76,6 @@ class AuthService:
             # Revoke the old token
             exp = payload.get("exp")
             if exp:
-                from datetime import datetime, timezone
                 remaining = exp - int(datetime.now(timezone.utc).timestamp())
                 auth_handler.revoke_token(token, exp_seconds=max(remaining, 0))
             else:
@@ -102,7 +102,6 @@ class AuthService:
             if payload:
                 exp = payload.get("exp")
                 if exp:
-                    from datetime import datetime, timezone
                     remaining = exp - int(datetime.now(timezone.utc).timestamp())
                     auth_handler.revoke_token(token, exp_seconds=max(remaining, 0))
                 else:

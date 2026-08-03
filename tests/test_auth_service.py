@@ -70,7 +70,8 @@ class TestAuthService(unittest.TestCase):
         login_result = auth_service.login(login_data["username"], login_data["password"])
         token = login_result["access_token"]
 
-        time.sleep(0.1)
+        # Wait enough for JWT timestamp to differ (iat is integer seconds)
+        time.sleep(1.5)
 
         refresh_result = auth_service.refresh_token(token)
         self.assertIn("access_token", refresh_result)

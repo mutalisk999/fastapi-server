@@ -7,20 +7,24 @@ from utils.logger import logger
 
 
 def rate_limit(max_requests: int = 5, window_seconds: int = 60):
-    """Rate limit decorator using Redis. Falls back to in-memory if Redis unavailable."""
+    """Rate limit decorator using Redis. Falls back to in-memory if Redis unavailable.
+
+    The decorated function must accept `request: Request` as a parameter
+    for FastAPI to inject the Request object.
+    """
     _memory_store: dict = {}
 
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, request: Request = None, **kwargs):
-            # Try to get the request object from kwargs or args
+        async def wrapper(*args, **kwargs):
+            # Extract Request from FastAPI-injected parameters
+            request = kwargs.get("request")
             if request is None:
                 for arg in args:
                     if isinstance(arg, Request):
                         request = arg
                         break
             if request is None:
-                # Fallback: no rate limiting if we can't identify the client
                 return await func(*args, **kwargs)
 
             client_ip = request.client.host if request.client else "unknown"
@@ -54,7 +58,6 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60):
             if key not in _memory_store:
                 _memory_store[key] = []
 
-            # Clean up expired entries
             _memory_store[key] = [t for t in _memory_store[key] if now - t < window_seconds]
 
             if len(_memory_store[key]) >= max_requests:

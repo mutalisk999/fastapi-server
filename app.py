@@ -6,7 +6,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from config import DevelopmentConfig, ProductionConfig, TestingConfig, configs
-from typing import Union, Dict
+from typing import Union
 
 from controller import mock_router
 from controller.user_controller import user_router
@@ -21,23 +21,31 @@ from utils.redis_client import RedisClient
 
 
 async def db_session_middleware(request: Request, call_next):
-    """Middleware to handle database session for each request."""
+    """Middleware to handle database transactions for each request."""
     try:
         request.state.db = database_proxy
         response = await call_next(request)
-        return response
-    except Exception as e:
+        # Commit successful transactions if any
         try:
-            database_proxy.rollback()
+            if not database_proxy.is_closed():
+                database_proxy.commit()
+        except Exception:
+            pass
+        return response
+    except Exception:
+        # Rollback on exception
+        try:
+            if not database_proxy.is_closed():
+                database_proxy.rollback()
         except Exception:
             pass
         raise
     finally:
         try:
-            db_obj = database_proxy.obj
-            if db_obj and not isinstance(db_obj, type(None)):
+            if not database_proxy.is_closed():
+                db_obj = database_proxy.obj
                 # For pooled databases, the pool manages connections
-                if not hasattr(db_obj, "max_connections"):
+                if db_obj and not hasattr(db_obj, "max_connections"):
                     database_proxy.close()
         except Exception:
             pass
@@ -60,7 +68,6 @@ class Application(object):
     config_pass: str = ""
     global_stop: bool = False
     redis_client: Union[RedisClient, None] = None
-    thread_running_dict: Dict = {}
 
     @staticmethod
     def create_app(config_name: str, config_pass: str):
@@ -118,10 +125,10 @@ class Application(object):
         app.include_router(prefix="/api", router=api_router)
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Restrict allowed origins
+            allow_origins=setting.CORS_ORIGINS,
             allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Restrict allowed methods
-            allow_headers=["Content-Type", "Authorization"],  # Restrict allowed headers
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization"],
         )
         # Register error handler first (outer), then db session (inner)
         # This ensures db_session exceptions are caught by error_handler

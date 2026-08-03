@@ -12,7 +12,7 @@ class AesGcm(object):
         self.key = hashlib.sha256(key).digest()
 
     def encrypt(self, plaintext: bytes) -> str:
-        """Encrypt plaintext with AES-256-GCM. Returns hex-encoded nonce+ ciphertext+tag."""
+        """Encrypt plaintext with AES-256-GCM. Returns hex-encoded nonce+ciphertext+tag."""
         aesgcm = AESGCM(self.key)
         nonce = os.urandom(12)  # 96-bit nonce is standard for GCM
         ciphertext = aesgcm.encrypt(nonce, plaintext, None)
@@ -25,10 +25,10 @@ class AesGcm(object):
         nonce = data[:12]
         ciphertext_bytes = data[12:]
         plaintext = aesgcm.decrypt(nonce, ciphertext_bytes, None)
-        return plaintext.decode("ascii")
+        return plaintext.decode("utf-8")
 
 
-# Backward-compatible aliases used by app.py
+# Backward-compatible aliases
 Aes128Cbc = AesGcm
 aes128_cbc_encrypt = AesGcm.encrypt
 aes128_cbc_decrypt = AesGcm.decrypt

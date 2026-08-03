@@ -5,7 +5,7 @@ from typing import Dict, Any
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from services.user_service import user_service
 from services.auth_service import auth_service
-from models import CreateUserRequest, UpdateUserRequest
+from utils.schemas import CreateUserRequest, UpdateUserRequest
 from utils.logger import logger
 
 user_router = APIRouter()
@@ -13,7 +13,7 @@ security = HTTPBearer()
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
-    """获取当前用户"""
+    """Get current user"""
     token = credentials.credentials
     user_info = auth_service.verify_token(token)
     if not user_info:
@@ -23,7 +23,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 @user_router.get("/users/{user_id}")
 def get_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """获取用户信息"""
+    """Get user information"""
     try:
         user_info = user_service.get_user_info(user_id)
         return user_info
@@ -34,7 +34,7 @@ def get_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_us
 
 @user_router.post("/users")
 def create_user(user_data: CreateUserRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """创建用户"""
+    """Create user"""
     try:
         new_user = user_service.create_user(user_data.model_dump())
         return new_user
@@ -45,7 +45,7 @@ def create_user(user_data: CreateUserRequest, current_user: Dict[str, Any] = Dep
 
 @user_router.put("/users/{user_id}")
 def update_user(user_id: str, user_data: UpdateUserRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """更新用户信息"""
+    """Update user information"""
     try:
         updated_user = user_service.update_user(user_id, user_data.model_dump(exclude_none=True))
         return updated_user
@@ -56,7 +56,7 @@ def update_user(user_id: str, user_data: UpdateUserRequest, current_user: Dict[s
 
 @user_router.delete("/users/{user_id}")
 def delete_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """删除用户"""
+    """Delete user"""
     try:
         result = user_service.delete_user(user_id)
         return {"success": result}

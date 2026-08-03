@@ -1,20 +1,20 @@
 # FastAPI Server
 
-A scaffolding project repository for a FastAPI server-side application.
+A scaffolding project repository for a FastAPI server-side application with authentication, database integration, and background task support.
 
 ## Features
 
 - **FastAPI Framework**: Modern, fast (high-performance), web framework for building APIs with Python 3.11+ based on standard Python type hints.
-- **Configuration Management**: Environment-specific configuration with support for development, testing, and production environments.
+- **Configuration Management**: Environment-specific configuration (development, testing, production) with encrypted secrets.
 - **Database Integration**: MySQL/PostgreSQL/SQLite database integration with Peewee ORM, connection pooling, and auto-reconnect.
 - **Redis Integration**: Redis client for caching, session management, rate limiting, and token blacklisting.
-- **Authentication**: JWT (HS256) based authentication with token blacklist/revocation support.
+- **Authentication**: JWT (HS256) based authentication with bcrypt password hashing and token blacklist/revocation support.
 - **Encryption**: AES-256-GCM for encrypting sensitive configuration values (database passwords, JWT secrets).
 - **Rate Limiting**: IP-based rate limiting on login endpoint (5 requests/60s by default).
-- **Input Validation**: Pydantic request models for all API endpoints.
+- **Request Validation**: Pydantic models for request validation.
 - **Logging**: Configurable logging system with file rotation, using proxy pattern for runtime reconfiguration.
-- **CORS Support**: Cross-Origin Resource Sharing (CORS) middleware for handling cross-origin requests.
-- **Background Tasks**: Thread manager with per-thread stop events for graceful shutdown.
+- **CORS Support**: Configurable Cross-Origin Resource Sharing (CORS) middleware.
+- **Background Tasks**: Thread manager for handling background tasks with per-thread graceful shutdown.
 
 ## Project Structure
 
@@ -24,11 +24,16 @@ fastapi-server/
 ├── controller/         # API controllers (auth, user, mock)
 ├── database/           # Database proxy, base model, reconnect connectors
 ├── external/           # External service integrations (reserved)
-├── services/           # Business logic (auth, user)
+├── services/           # Business logic services (auth, user)
 ├── tests/              # Unit tests
-├── thread_task/        # Background thread manager
-├── utils/              # Utilities (auth, crypto, logger, redis, rate limit, captcha, password)
-├── models.py           # Pydantic request validation models
+├── thread_task/        # Background task management
+├── utils/              # Utility functions (auth, crypto, logger, redis, rate limit, captcha, password, schemas)
+├── logs/               # Application logs (auto-created)
+├── .env                # Environment selector (USE_CONFIG)
+├── .env.dev            # Development environment variables
+├── .env.testing        # Testing environment variables
+├── .env.prod           # Production environment variables
+├── requirements.txt    # Python dependencies
 ├── api_server.py       # Application entry point
 └── app.py              # Application initialization, middleware, routing
 ```
@@ -38,8 +43,7 @@ fastapi-server/
 ### Prerequisites
 
 - Python 3.11+
-- Pipenv
-- MySQL
+- MySQL 5.7+
 - Redis (optional, used for rate limiting and token blacklist)
 
 ### Installation
@@ -52,11 +56,11 @@ fastapi-server/
 
 2. **Install dependencies**:
    ```bash
-   pipenv install
+   pip install -r requirements.txt
    ```
 
 3. **Encrypt sensitive configuration values**:
-   Sensitive values (DATABASE_PASS, JWT_SECRET) must be AES-256-GCM encrypted before storing in env files. Use the encryption utility:
+   Sensitive values (DATABASE_PASS, JWT_SECRET) must be AES-256-GCM encrypted before storing in env files:
    ```python
    from utils.crypto_tools import AesGcm
    aes = AesGcm(b"your_config_password")
@@ -65,17 +69,16 @@ fastapi-server/
    ```
 
 4. **Configure environment variables**:
-   - Create a `.env` file in the project root directory:
-     ```
-     USE_CONFIG=development
-     ```
-   - Create environment-specific configuration files:
-     - `.env.dev` for development
-     - `.env.testing` for testing
-     - `.env.prod` for production
 
-   Example `.env.dev`:
+   Create a `.env` file in the project root:
+   ```env
+   USE_CONFIG=development
    ```
+
+   Create environment-specific configuration files:
+
+   **`.env.dev`** (Development):
+   ```env
    # JWT configuration (AES-256-GCM encrypted hex string)
    JWT_SECRET=<encrypted_hex_string>
 
@@ -91,6 +94,13 @@ fastapi-server/
    # Redis configuration
    REDIS_URL=redis://localhost:6379/0
 
+   # CORS configuration
+   CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+
+   # Server configuration
+   SERVER_HOST=0.0.0.0
+   SERVER_PORT=7788
+
    # Log configuration
    LOG_FILE_NAME=app.log
    LOG_LEVEL=INFO
@@ -100,22 +110,22 @@ fastapi-server/
 
 5. **Run the application**:
    ```bash
-   pipenv run python api_server.py
+   python api_server.py
    ```
-   You will be prompted to enter the config password used to encrypt sensitive values.
+   You will be prompted to enter the config password for decrypting sensitive information (JWT_SECRET, DATABASE_PASS).
 
 ## API Endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/mock/hello` | No | Mock endpoint, returns "Hello World!" |
+| GET | `/api/mock/hello` | No | Returns "Hello World!" message |
 | POST | `/api/auth/login` | No | User login, returns JWT token (rate limited: 5 req/min) |
 | POST | `/api/auth/refresh` | No | Refresh JWT token, old token is revoked |
 | POST | `/api/auth/logout` | Bearer | Logout, revokes current token |
-| GET | `/api/users/{user_id}` | Bearer | Get user info |
-| POST | `/api/users` | Bearer | Create user |
-| PUT | `/api/users/{user_id}` | Bearer | Update user info |
-| DELETE | `/api/users/{user_id}` | Bearer | Delete user |
+| GET | `/api/users/{user_id}` | Bearer | Get user information |
+| POST | `/api/users` | Bearer | Create a new user |
+| PUT | `/api/users/{user_id}` | Bearer | Update user information |
+| DELETE | `/api/users/{user_id}` | Bearer | Delete a user |
 
 ### Request/Response Examples
 
@@ -129,7 +139,7 @@ POST /api/auth/login
 
 Response:
 {
-  "access_token": "eyJ...",
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
   "token_type": "bearer",
   "expires_in": 604800
 }
@@ -138,7 +148,7 @@ Response:
 **Authenticated Request**:
 ```
 GET /api/users/123
-Authorization: Bearer eyJ...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
 ## Architecture
@@ -147,7 +157,7 @@ Authorization: Bearer eyJ...
 
 1. **CORS Middleware** — Handles cross-origin requests
 2. **Error Handler Middleware** — Catches exceptions, returns generic 500 responses (no internal details leaked)
-3. **DB Session Middleware** — Manages database connections per request, rollback on error, proper pool handling
+3. **DB Session Middleware** — Manages database transactions per request, commit on success, rollback on error, proper pool handling
 
 ### Authentication Flow
 
@@ -171,14 +181,28 @@ Custom `ReconnectMixinNew` wraps Peewee database drivers to automatically reconn
 
 ### Background Threads
 
-`ThreadManager` manages named daemon threads with per-thread `stop_event` for graceful individual shutdown, plus `Application.global_stop` for full application shutdown.
+`ThreadManager` manages named daemon threads with per-thread `_stop_flag` for graceful individual shutdown, plus `Application.global_stop` for full application shutdown.
 
-## Configuration
+## Configuration Reference
 
-### Two-Level Configuration
-
-1. **`.env`** — Contains only `USE_CONFIG` to select the environment
-2. **Environment-specific** (`.env.dev` / `.env.testing` / `.env.prod`) — All business configuration
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| JWT_SECRET | string | - | JWT signing secret (encrypted) |
+| DATABASE_USER | string | - | Database username |
+| DATABASE_PASS | string | - | Database password (encrypted) |
+| DATABASE_HOST | string | localhost | Database host |
+| DATABASE_PORT | int | 3306 | Database port |
+| DATABASE_NAME | string | - | Database name |
+| DATABASE_CHARSET | string | utf8mb4 | Database charset |
+| DATABASE_POOL_SIZE | int | 5 | Database connection pool size |
+| REDIS_URL | string | redis://localhost:6379/0 | Redis connection URL |
+| CORS_ORIGINS | list | ["http://localhost:3000"] | Allowed CORS origins |
+| SERVER_HOST | string | 0.0.0.0 | Server bind address |
+| SERVER_PORT | int | 7788 | Server port |
+| LOG_FILE_NAME | string | app.log | Log file name |
+| LOG_LEVEL | string | INFO | Log level (DEBUG, INFO, WARNING, ERROR) |
+| LOG_FILE_SIZE | int | 10485760 | Max log file size in bytes |
+| LOG_BACKUP_COUNT | int | 5 | Number of log backup files |
 
 ### Supported Environments
 
@@ -191,18 +215,31 @@ Custom `ReconnectMixinNew` wraps Peewee database drivers to automatically reconn
 ### Specifying Environment
 
 ```bash
-USE_CONFIG=production pipenv run python api_server.py
+USE_CONFIG=production python api_server.py
 ```
 
-## Running Tests
+## Security Considerations
+
+- All sensitive configuration values should be encrypted before storing in `.env` files
+- The config password is entered at runtime and never stored
+- JWT tokens expire after 7 days by default
+- Tokens can be revoked via Redis blacklist on logout
+- Passwords are hashed using bcrypt before storage
+- Login endpoint is rate-limited to prevent brute force attacks
+- CORS origins should be restricted in production
+- Error responses never leak internal exception details
+
+## Testing
 
 ```bash
-pipenv run python -m pytest tests/
+# Run all tests
+python -m unittest discover tests
+
+# Run specific test file
+python -m unittest tests.test_auth_service
+python -m unittest tests.test_password_tools
+python -m unittest tests.test_user_service
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
