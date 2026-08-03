@@ -3,16 +3,18 @@
 from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse
 
 from config import DevelopmentConfig, ProductionConfig, TestingConfig, configs
 from typing import Union, Dict
 
 from controller import mock_router
+from controller.user_controller import user_router
+from controller.auth_controller import auth_router
 from database import database_proxy
 from database.connector import ReconnectMySQLDatabase, ReconnectPooledMySQLDatabase
 from utils.authentication import auth_handler
-from utils.crypto_tools import Aes128Cbc
+from utils.crypto_tools import AesGcm
 from utils.logger import init_logger, logger
 
 from utils.redis_client import RedisClient
@@ -20,44 +22,25 @@ from utils.redis_client import RedisClient
 
 async def db_session_middleware(request: Request, call_next):
     """Middleware to handle database session for each request."""
-    response = Response("Internal server error", status_code=500)
     try:
-        # Set database proxy to request state
         request.state.db = database_proxy
-        # Process the request
         response = await call_next(request)
+        return response
     except Exception as e:
-        # Log the error
-        if hasattr(request.state, "db"):
-            # Rollback transaction if there's an exception
-            try:
-                request.state.db.rollback()
-            except Exception:
-                pass
-        # Re-raise the exception to be handled by error handler middleware
+        try:
+            database_proxy.rollback()
+        except Exception:
+            pass
         raise
     finally:
-        # Only close the connection if we're not using a connection pool
-        if hasattr(request.state, "db"):
-            try:
-                # For connection pool, we should just close the cursor
-                # For single connection, we should close the connection
-                if hasattr(request.state.db, "close"):
-                    # Check if it's a pooled database
-                    if (
-                        hasattr(request.state.db, "max_connections")
-                        and request.state.db.max_connections > 1
-                    ):
-                        # For pooled database, we don't need to close the connection
-                        # The pool will manage connections automatically
-                        pass
-                    else:
-                        # For single connection, close it
-                        request.state.db.close()
-            except Exception as e:
-                # Log the error but don't let it affect the response
-                pass
-    return response
+        try:
+            db_obj = database_proxy.obj
+            if db_obj and not isinstance(db_obj, type(None)):
+                # For pooled databases, the pool manages connections
+                if not hasattr(db_obj, "max_connections"):
+                    database_proxy.close()
+        except Exception:
+            pass
 
 
 async def error_handler_middleware(request: Request, call_next):
@@ -88,10 +71,10 @@ class Application(object):
             url=setting.REDIS_URL, max_connections=10
         )
 
-        aes128 = Aes128Cbc(Application.config_pass.encode("ascii"))
-        database_pass = aes128.aes128_cbc_decrypt(setting.DATABASE_PASS)
+        aes_gcm = AesGcm(Application.config_pass.encode("ascii"))
+        database_pass = aes_gcm.decrypt(setting.DATABASE_PASS)
 
-        jwt_secret = aes128.aes128_cbc_decrypt(setting.JWT_SECRET)
+        jwt_secret = aes_gcm.decrypt(setting.JWT_SECRET)
         auth_handler.initialize(jwt_secret)
 
         if setting.DATABASE_POOL_SIZE <= 1:
@@ -140,8 +123,10 @@ class Application(object):
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Restrict allowed methods
             allow_headers=["Content-Type", "Authorization"],  # Restrict allowed headers
         )
-        app.middleware("http")(db_session_middleware)
+        # Register error handler first (outer), then db session (inner)
+        # This ensures db_session exceptions are caught by error_handler
         app.middleware("http")(error_handler_middleware)
+        app.middleware("http")(db_session_middleware)
 
         # Reinitialize logger with config parameters
         init_logger()

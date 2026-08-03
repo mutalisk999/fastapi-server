@@ -5,6 +5,8 @@ from typing import Dict, Any
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from services.user_service import user_service
 from services.auth_service import auth_service
+from models import CreateUserRequest, UpdateUserRequest
+from utils.logger import logger
 
 user_router = APIRouter()
 security = HTTPBearer()
@@ -26,27 +28,30 @@ def get_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_us
         user_info = user_service.get_user_info(user_id)
         return user_info
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @user_router.post("/users")
-def create_user(user_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def create_user(user_data: CreateUserRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """创建用户"""
     try:
-        new_user = user_service.create_user(user_data)
+        new_user = user_service.create_user(user_data.model_dump())
         return new_user
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @user_router.put("/users/{user_id}")
-def update_user(user_id: str, user_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def update_user(user_id: str, user_data: UpdateUserRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """更新用户信息"""
     try:
-        updated_user = user_service.update_user(user_id, user_data)
+        updated_user = user_service.update_user(user_id, user_data.model_dump(exclude_none=True))
         return updated_user
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @user_router.delete("/users/{user_id}")
@@ -56,4 +61,5 @@ def delete_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current
         result = user_service.delete_user(user_id)
         return {"success": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

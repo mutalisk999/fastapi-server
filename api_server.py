@@ -52,7 +52,8 @@ if __name__ == "__main__":
 
     # Register signal handlers
     signal.signal(signal.SIGINT, handle_sig)
-    signal.signal(signal.SIGTERM, handle_sig)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, handle_sig)
 
     thread_run()
 

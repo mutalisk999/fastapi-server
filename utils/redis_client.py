@@ -11,15 +11,28 @@ class RedisClient(object):
     def __init__(self, url: str = "redis://127.0.0.1:6379/0", max_connections: int = 10):
         self.client_pool: ConnectionPool = redis.ConnectionPool.from_url(url=url, max_connections=max_connections)
         self.redis_client: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
-        # Test connection on initialization
+        self._connected = False
+        # Test connection lazily - don't block startup
         try:
             self.redis_client.ping()
+            self._connected = True
             logger.info("Redis connection established successfully")
         except Exception as e:
-            logger.error(f"Failed to establish Redis connection: {e}")
+            logger.warning(f"Redis not available at startup: {e}. Will retry on first operation.")
+
+    def _ensure_connection(self):
+        """Ensure Redis connection is available, retry if needed"""
+        if not self._connected:
+            try:
+                self.redis_client.ping()
+                self._connected = True
+            except Exception as e:
+                logger.error(f"Redis connection failed: {e}")
+                raise
 
     def get(self, key: str) -> Any:
         try:
+            self._ensure_connection()
             return self.redis_client.get(key)
         except Exception as e:
             logger.error(f"Redis get error: {e}")
@@ -27,6 +40,7 @@ class RedisClient(object):
 
     def set(self, key: str, value: Any, expire: int = 0):
         try:
+            self._ensure_connection()
             self.redis_client.set(key, value)
             if expire > 0:
                 self.redis_client.expire(key, expire)
@@ -37,6 +51,7 @@ class RedisClient(object):
 
     def delete(self, key: str):
         try:
+            self._ensure_connection()
             self.redis_client.delete(key)
             return True
         except Exception as e:
@@ -45,6 +60,7 @@ class RedisClient(object):
 
     def expire(self, key: str, expire: int):
         try:
+            self._ensure_connection()
             self.redis_client.expire(key, expire)
             return True
         except Exception as e:

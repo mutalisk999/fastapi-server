@@ -4,31 +4,33 @@ A scaffolding project repository for a FastAPI server-side application.
 
 ## Features
 
-- **FastAPI Framework**: Modern, fast (high-performance), web framework for building APIs with Python 3.6+ based on standard Python type hints.
+- **FastAPI Framework**: Modern, fast (high-performance), web framework for building APIs with Python 3.11+ based on standard Python type hints.
 - **Configuration Management**: Environment-specific configuration with support for development, testing, and production environments.
-- **Database Integration**: MySQL database integration with Peewee ORM and connection pooling.
-- **Redis Integration**: Redis client for caching and session management.
-- **Authentication**: JWT-based authentication system.
-- **Logging**: Configurable logging system with file rotation.
+- **Database Integration**: MySQL/PostgreSQL/SQLite database integration with Peewee ORM, connection pooling, and auto-reconnect.
+- **Redis Integration**: Redis client for caching, session management, rate limiting, and token blacklisting.
+- **Authentication**: JWT (HS256) based authentication with token blacklist/revocation support.
+- **Encryption**: AES-256-GCM for encrypting sensitive configuration values (database passwords, JWT secrets).
+- **Rate Limiting**: IP-based rate limiting on login endpoint (5 requests/60s by default).
+- **Input Validation**: Pydantic request models for all API endpoints.
+- **Logging**: Configurable logging system with file rotation, using proxy pattern for runtime reconfiguration.
 - **CORS Support**: Cross-Origin Resource Sharing (CORS) middleware for handling cross-origin requests.
+- **Background Tasks**: Thread manager with per-thread stop events for graceful shutdown.
 
 ## Project Structure
 
 ```
 fastapi-server/
-├── config/             # Configuration files
-├── controller/         # API controllers
-├── database/           # Database models and connector
-├── external/           # External service integrations
-├── thread_task/        # Background tasks
-├── utils/              # Utility functions
-├── .gitignore          # Git ignore file
-├── LICENSE             # License file
-├── Pipfile             # Pipenv dependency file
-├── Pipfile.lock        # Pipenv lock file
-├── README.md           # This README file
+├── config/             # Configuration files (base, dev, testing, prod)
+├── controller/         # API controllers (auth, user, mock)
+├── database/           # Database proxy, base model, reconnect connectors
+├── external/           # External service integrations (reserved)
+├── services/           # Business logic (auth, user)
+├── tests/              # Unit tests
+├── thread_task/        # Background thread manager
+├── utils/              # Utilities (auth, crypto, logger, redis, rate limit, captcha, password)
+├── models.py           # Pydantic request validation models
 ├── api_server.py       # Application entry point
-└── app.py              # Application initialization
+└── app.py              # Application initialization, middleware, routing
 ```
 
 ## Getting Started
@@ -38,7 +40,7 @@ fastapi-server/
 - Python 3.11+
 - Pipenv
 - MySQL
-- Redis (optional)
+- Redis (optional, used for rate limiting and token blacklist)
 
 ### Installation
 
@@ -53,25 +55,33 @@ fastapi-server/
    pipenv install
    ```
 
-3. **Configure environment variables**:
-   - Create a `.env` file in the project root directory with the following variable:
+3. **Encrypt sensitive configuration values**:
+   Sensitive values (DATABASE_PASS, JWT_SECRET) must be AES-256-GCM encrypted before storing in env files. Use the encryption utility:
+   ```python
+   from utils.crypto_tools import AesGcm
+   aes = AesGcm(b"your_config_password")
+   encrypted = aes.encrypt(b"your_secret_value")
+   print(encrypted)  # Store this hex string in the env file
+   ```
+
+4. **Configure environment variables**:
+   - Create a `.env` file in the project root directory:
      ```
-     # Environment configuration
      USE_CONFIG=development
      ```
    - Create environment-specific configuration files:
-     - `.env.dev` for development environment
-     - `.env.testing` for testing environment
-     - `.env.prod` for production environment
+     - `.env.dev` for development
+     - `.env.testing` for testing
+     - `.env.prod` for production
 
-   Example of environment-specific configuration file (e.g., `.env.dev`):
+   Example `.env.dev`:
    ```
-   # JWT configuration
-   JWT_SECRET=dev_jwt_secret_key
+   # JWT configuration (AES-256-GCM encrypted hex string)
+   JWT_SECRET=<encrypted_hex_string>
 
    # Database configuration
    DATABASE_USER=root
-   DATABASE_PASS=dev_password
+   DATABASE_PASS=<encrypted_hex_string>
    DATABASE_HOST=localhost
    DATABASE_PORT=3306
    DATABASE_NAME=dev_db
@@ -88,76 +98,106 @@ fastapi-server/
    LOG_BACKUP_COUNT=5
    ```
 
-4. **Run the application**:
+5. **Run the application**:
    ```bash
    pipenv run python api_server.py
    ```
-   You will be prompted to enter a config password for decrypting sensitive information.
+   You will be prompted to enter the config password used to encrypt sensitive values.
 
-## Usage
+## API Endpoints
 
-### API Endpoints
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/mock/hello` | No | Mock endpoint, returns "Hello World!" |
+| POST | `/api/auth/login` | No | User login, returns JWT token (rate limited: 5 req/min) |
+| POST | `/api/auth/refresh` | No | Refresh JWT token, old token is revoked |
+| POST | `/api/auth/logout` | Bearer | Logout, revokes current token |
+| GET | `/api/users/{user_id}` | Bearer | Get user info |
+| POST | `/api/users` | Bearer | Create user |
+| PUT | `/api/users/{user_id}` | Bearer | Update user info |
+| DELETE | `/api/users/{user_id}` | Bearer | Delete user |
 
-- **GET /api/mock/hello**: A simple mock endpoint that returns "Hello World!"
+### Request/Response Examples
 
-### Configuration
+**Login**:
+```json
+POST /api/auth/login
+{
+  "username": "admin",
+  "password": "admin123"
+}
 
-The application uses a two-level configuration system:
+Response:
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "expires_in": 604800
+}
+```
 
-1. **Base configuration** (`env`): Contains only the `USE_CONFIG` variable to specify which environment configuration to use.
-2. **Environment-specific configuration**: Contains all business-related configuration for each environment.
+**Authenticated Request**:
+```
+GET /api/users/123
+Authorization: Bearer eyJ...
+```
+
+## Architecture
+
+### Middleware Stack (outer to inner)
+
+1. **CORS Middleware** — Handles cross-origin requests
+2. **Error Handler Middleware** — Catches exceptions, returns generic 500 responses (no internal details leaked)
+3. **DB Session Middleware** — Manages database connections per request, rollback on error, proper pool handling
+
+### Authentication Flow
+
+1. Client sends username/password to `/api/auth/login`
+2. Server verifies password (bcrypt), generates JWT (HS256, 7-day expiry)
+3. Client includes `Authorization: Bearer <token>` in subsequent requests
+4. Token verification checks both JWT signature and Redis blacklist
+5. `/api/auth/logout` adds token to Redis blacklist with remaining TTL
+6. `/api/auth/refresh` revokes old token and issues a new one
+
+### Encryption
+
+Configuration values are encrypted with AES-256-GCM using a config password provided at startup:
+- 256-bit key derived via SHA-256 from the config password
+- 96-bit random nonce per encryption (stored prepended to ciphertext)
+- Authentication tag ensures ciphertext integrity
+
+### Database Auto-Reconnect
+
+Custom `ReconnectMixinNew` wraps Peewee database drivers to automatically reconnect on connection errors (MySQL/PostgreSQL/SQLite, with or without connection pooling).
+
+### Background Threads
+
+`ThreadManager` manages named daemon threads with per-thread `stop_event` for graceful individual shutdown, plus `Application.global_stop` for full application shutdown.
+
+## Configuration
+
+### Two-Level Configuration
+
+1. **`.env`** — Contains only `USE_CONFIG` to select the environment
+2. **Environment-specific** (`.env.dev` / `.env.testing` / `.env.prod`) — All business configuration
 
 ### Supported Environments
 
-- **Development**: Uses `.env.dev` file
-- **Testing**: Uses `.env.testing` file
-- **Production**: Uses `.env.prod` file
-
-### Configuration Files
-
-- **`.env`**: Only contains the `USE_CONFIG` variable to specify the environment.
-- **`.env.dev`**: Development environment configuration.
-- **`.env.testing`**: Testing environment configuration.
-- **`.env.prod`**: Production environment configuration.
-
-### Example Configuration
-
-#### `.env` file:
-```
-# Environment configuration
-USE_CONFIG=development
-```
-
-#### Environment-specific configuration (e.g., `.env.dev`):
-```
-# JWT configuration
-JWT_SECRET=dev_jwt_secret_key
-
-# Database configuration
-DATABASE_USER=root
-DATABASE_PASS=dev_password
-DATABASE_HOST=localhost
-DATABASE_PORT=3306
-DATABASE_NAME=dev_db
-DATABASE_CHARSET=utf8mb4
-DATABASE_POOL_SIZE=5
-
-# Redis configuration
-REDIS_URL=redis://localhost:6379/0
-
-# Log configuration
-LOG_FILE_NAME=app.log
-LOG_LEVEL=INFO
-LOG_FILE_SIZE=10485760
-LOG_BACKUP_COUNT=5
-```
+| Environment | Config File | Pool Size | Notes |
+|-------------|-------------|-----------|-------|
+| Development | `.env.dev` | 5 (default) | Single connection or small pool |
+| Testing | `.env.testing` | 5 (default) | Isolated test database |
+| Production | `.env.prod` | 20 | Large connection pool |
 
 ### Specifying Environment
 
-You can specify the environment by setting the `USE_CONFIG` environment variable in the `.env` file, or by passing it as a command-line argument:
-
 ```bash
 USE_CONFIG=production pipenv run python api_server.py
+```
+
+## Running Tests
+
+```bash
+pipenv run python -m pytest tests/
 ```
 
 ## Contributing

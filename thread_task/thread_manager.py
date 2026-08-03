@@ -36,23 +36,24 @@ class ThreadManager:
             if thread_id not in self.threads:
                 logger.warning(f"Thread with ID {thread_id} does not exist")
                 return False
-            
+
             thread = self.threads[thread_id]
             logger.info(f"Stopping thread: {thread.name} (ID: {thread_id})")
-            # Set global stop flag
-            Application.global_stop = True
+            # Signal this specific thread to stop via its own stop flag
+            if hasattr(thread, 'stop_event'):
+                thread.stop_event.set()
             # Wait for thread to stop
             thread.join(timeout=5)
             if thread.is_alive():
                 logger.warning(f"Thread {thread_id} did not stop within timeout")
             else:
                 logger.info(f"Thread {thread_id} stopped successfully")
-            
+
             # Remove from dictionaries
             del self.threads[thread_id]
             if thread_id in Application.thread_running_dict:
                 del Application.thread_running_dict[thread_id]
-            
+
             return True
         except Exception as e:
             logger.error(f"Error stopping thread: {e}")

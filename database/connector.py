@@ -18,19 +18,22 @@ class ReconnectMixinNew(ReconnectMixin):
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
         except Exception as exc:
             exc_class = type(exc)
-            if (
-                exc_class not in self._reconnect_errors
-                and exc_class is not InterfaceError
-            ):
-                raise exc
 
+            # Check if this exception type is a reconnectable error
+            is_reconnectable = False
             if exc_class in self._reconnect_errors:
+                # Check if the error message matches any known fragment
                 exc_repr = str(exc).lower()
                 for err_fragment in self._reconnect_errors[exc_class]:
                     if err_fragment in exc_repr:
+                        is_reconnectable = True
                         break
-                else:
-                    raise exc
+            elif exc_class is InterfaceError:
+                # InterfaceError is always reconnectable
+                is_reconnectable = True
+
+            if not is_reconnectable:
+                raise exc
 
             if not self.is_closed():
                 self.close()

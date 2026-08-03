@@ -2,7 +2,7 @@
 # encoding: utf-8
 import jwt
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from fastapi import Security, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -21,7 +21,6 @@ class AuthHandler(object):
         """Initialize the auth handler with a secret"""
         self.secret = secret
 
-    # encode jwt token
     def encode_token(self, payload: dict) -> str:
         """Encode a JWT token"""
         try:
@@ -46,7 +45,6 @@ class AuthHandler(object):
             logger.error(f"Error generating token: {e}")
             raise
 
-    # decode jwt token
     def decode_token(self, token: str) -> Optional[dict]:
         """Decode and verify a JWT token"""
         try:
@@ -65,11 +63,40 @@ class AuthHandler(object):
             return None
 
     def verify_token(self, token: str) -> Optional[dict]:
-        """Verify a JWT token"""
+        """Verify a JWT token, checking blacklist if Redis is available"""
         payload = self.decode_token(token)
         if payload is None:
             return None
+
+        # Check token blacklist via Redis
+        if self._is_token_blacklisted(token):
+            logger.warning("Token has been revoked")
+            return None
+
         return payload
+
+    def _is_token_blacklisted(self, token: str) -> bool:
+        """Check if a token is in the blacklist"""
+        try:
+            from app import Application
+            redis_client = Application.redis_client
+            if redis_client:
+                return redis_client.get(f"token_blacklist:{token}") is not None
+        except Exception:
+            pass
+        return False
+
+    def revoke_token(self, token: str, exp_seconds: int = None):
+        """Add a token to the blacklist. exp_seconds should match token's remaining TTL."""
+        try:
+            from app import Application
+            redis_client = Application.redis_client
+            if redis_client:
+                # Default to 7 days if we can't determine remaining TTL
+                ttl = exp_seconds if exp_seconds else 604800
+                redis_client.set(f"token_blacklist:{token}", "1", expire=ttl)
+        except Exception as e:
+            logger.error(f"Error revoking token: {e}")
 
     def auth_wrapper(self, _: Request, oauth: HTTPAuthorizationCredentials = Security(HTTPBearer())) -> dict:
         """Auth wrapper for FastAPI dependencies"""
