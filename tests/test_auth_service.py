@@ -11,7 +11,7 @@ class TestAuthService(unittest.TestCase):
 
     def setUp(self):
         """Initialize auth_handler before each test"""
-        auth_handler.initialize("test_secret_for_unit_tests_only")
+        auth_handler.initialize("test_secret_for_unit_tests_only_x")
 
     def test_login(self):
         """Test login functionality"""
@@ -38,7 +38,7 @@ class TestAuthService(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             auth_service.login("admin", "admin123")
         # Restore for other tests
-        auth_handler.initialize("test_secret_for_unit_tests_only")
+        auth_handler.initialize("test_secret_for_unit_tests_only_x")
 
     def test_verify_token(self):
         """Test token verification functionality"""
@@ -52,12 +52,27 @@ class TestAuthService(unittest.TestCase):
         # Verify token
         verify_result = auth_service.verify_token(token)
         self.assertIsInstance(verify_result, dict)
-        self.assertIn("user_id", verify_result)
+        self.assertIn("sub", verify_result)
 
         # Verify invalid token
         invalid_token = "invalid_token"
         verify_result = auth_service.verify_token(invalid_token)
         self.assertIsNone(verify_result)
+
+    def test_login_disabled_when_mock_auth_off(self):
+        """Mock login must be rejected when MOCK_AUTH_ENABLED is False (production)."""
+        from app import Application
+
+        class FakeSetting:
+            MOCK_AUTH_ENABLED = False
+
+        original = Application.setting
+        Application.setting = FakeSetting()
+        try:
+            with self.assertRaises(RuntimeError):
+                auth_service.login("admin", "admin123")
+        finally:
+            Application.setting = original
 
     def test_refresh_token(self):
         """Test token refresh functionality"""

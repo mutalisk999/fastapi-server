@@ -12,6 +12,8 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60):
     The decorated function must accept `request: Request` as a parameter
     for FastAPI to inject the Request object.
     """
+    # Bound the size of the in-memory fallback store.
+    _MEMORY_STORE_MAX_KEYS = 10000
     _memory_store: dict = {}
 
     def decorator(func):
@@ -30,23 +32,20 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60):
             client_ip = request.client.host if request.client else "unknown"
             key = f"rate_limit:{func.__name__}:{client_ip}"
 
-            # Try Redis first
+            # Try Redis first: atomic INCR, with EXPIRE set once on the first hit.
             try:
                 from app import Application
                 redis_client = Application.redis_client
                 if redis_client:
-                    current = redis_client.get(key)
-                    if current is None:
-                        redis_client.set(key, "1", expire=window_seconds)
-                    else:
-                        count = int(current)
-                        if count >= max_requests:
-                            logger.warning(f"Rate limit exceeded for {client_ip} on {func.__name__}")
-                            raise HTTPException(
-                                status_code=429,
-                                detail="Too many requests. Please try again later."
-                            )
-                        redis_client.redis_client.incr(key)
+                    count = redis_client.incr(key)
+                    if count == 1:
+                        redis_client.expire(key, window_seconds)
+                    if count > max_requests:
+                        logger.warning(f"Rate limit exceeded for {client_ip} on {func.__name__}")
+                        raise HTTPException(
+                            status_code=429,
+                            detail="Too many requests. Please try again later."
+                        )
                     return await func(*args, **kwargs)
             except HTTPException:
                 raise
@@ -68,6 +67,14 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60):
                 )
 
             _memory_store[key].append(now)
+
+            # Periodically purge expired entries so the store cannot grow unbounded.
+            if len(_memory_store) > _MEMORY_STORE_MAX_KEYS:
+                for k in list(_memory_store):
+                    _memory_store[k] = [t for t in _memory_store[k] if now - t < window_seconds]
+                    if not _memory_store[k]:
+                        del _memory_store[k]
+
             return await func(*args, **kwargs)
 
         return wrapper

@@ -6,39 +6,58 @@ from utils.authentication import auth_handler
 from utils.password_tools import password_tools
 from utils.logger import logger
 
+# Token lifetime returned to clients. Must match the default expiration in
+# AuthHandler.generate_token (86400 * 7).
+TOKEN_EXPIRES_IN = 7 * 24 * 60 * 60  # 7 days
+
 
 class AuthService:
     """Authentication service class, handling authentication-related business logic"""
+
+    # DEV-ONLY mock credential. Plaintext is "admin123" - do NOT reuse in prod.
+    # The login endpoint only accepts this while MOCK_AUTH_ENABLED is true
+    # (dev/testing); production disables mock auth entirely.
+    _MOCK_ADMIN_PASSWORD_HASH = (
+        "$2b$12$5yLWERchOfPdEQrZEiY93.F5NkYqLaVGaOu6D4umiWiBQW9rnx./a"
+    )
 
     def _ensure_initialized(self):
         """Ensure auth_handler is initialized, raise if not"""
         if not auth_handler.secret:
             raise RuntimeError("Auth handler not initialized - JWT secret is missing")
 
+    def _mock_auth_enabled(self) -> bool:
+        """Whether the temporary mock user store is allowed to accept logins."""
+        try:
+            from app import Application
+            setting = Application.setting
+        except Exception:
+            setting = None
+        # Default True so unit tests (which never build the app) keep working.
+        return bool(getattr(setting, "MOCK_AUTH_ENABLED", True))
+
     def login(self, username: str, password: str) -> Dict[str, Any]:
         """User login"""
         try:
             self._ensure_initialized()
 
-            # This should be the logic to get user information from the database
-            # Temporarily return mock data
-            if username == "admin":
-                # Mock hashed password from database
-                # Note: In actual application, this hashed password should be stored in the database
-                hashed_password = "$2b$12$5yLWERchOfPdEQrZEiY93.F5NkYqLaVGaOu6D4umiWiBQW9rnx./a"
-                # Verify password
-                if password_tools.verify_password(password, hashed_password):
-                    # Generate JWT token
-                    token = auth_handler.generate_token(username)
-                    return {
-                        "access_token": token,
-                        "token_type": "bearer",
-                        "expires_in": 604800  # 7 days
-                    }
-                else:
-                    raise ValueError("Invalid username or password")
-            else:
-                raise ValueError("Invalid username or password")
+            if not self._mock_auth_enabled():
+                raise RuntimeError(
+                    "Authentication is not configured - no user store available"
+                )
+
+            # TEMP: mock user store. Replace with a real database lookup.
+            if username == "admin" and password_tools.verify_password(
+                password, self._MOCK_ADMIN_PASSWORD_HASH
+            ):
+                # Generate JWT token
+                token = auth_handler.generate_token(username)
+                return {
+                    "access_token": token,
+                    "token_type": "bearer",
+                    "expires_in": TOKEN_EXPIRES_IN,
+                }
+            raise ValueError("Invalid username or password")
         except ValueError:
             raise
         except Exception as e:
@@ -54,9 +73,9 @@ class AuthService:
             payload = auth_handler.verify_token(token)
             if payload:
                 return {
-                    "user_id": payload.get("sub"),
+                    "sub": payload.get("sub"),
                     "exp": payload.get("exp"),
-                    "iat": payload.get("iat")
+                    "iat": payload.get("iat"),
                 }
             return None
         except Exception as e:
@@ -73,11 +92,12 @@ class AuthService:
             if not payload:
                 raise ValueError("Invalid token")
 
-            # Revoke the old token
+            # Revoke the old token (no point blacklisting an already-expired one)
             exp = payload.get("exp")
             if exp:
                 remaining = exp - int(datetime.now(timezone.utc).timestamp())
-                auth_handler.revoke_token(token, exp_seconds=max(remaining, 0))
+                if remaining > 0:
+                    auth_handler.revoke_token(token, exp_seconds=remaining)
             else:
                 auth_handler.revoke_token(token)
 
@@ -86,7 +106,7 @@ class AuthService:
             return {
                 "access_token": new_token,
                 "token_type": "bearer",
-                "expires_in": 604800  # 7 days
+                "expires_in": TOKEN_EXPIRES_IN,
             }
         except ValueError:
             raise
@@ -103,7 +123,8 @@ class AuthService:
                 exp = payload.get("exp")
                 if exp:
                     remaining = exp - int(datetime.now(timezone.utc).timestamp())
-                    auth_handler.revoke_token(token, exp_seconds=max(remaining, 0))
+                    if remaining > 0:
+                        auth_handler.revoke_token(token, exp_seconds=remaining)
                 else:
                     auth_handler.revoke_token(token)
         except Exception as e:

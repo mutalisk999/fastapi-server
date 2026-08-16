@@ -16,6 +16,12 @@ class ReconnectMixinNew(ReconnectMixin):
         try:
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
         except Exception as exc:
+            # Never reconnect mid-transaction: closing the connection would drop
+            # any pending changes, and re-executing the statement outside the
+            # transaction could commit partial state or duplicate writes.
+            if self.in_transaction():
+                raise exc
+
             exc_class = type(exc)
 
             # Check if this exception type is a reconnectable error
@@ -27,7 +33,7 @@ class ReconnectMixinNew(ReconnectMixin):
                     if err_fragment in exc_repr:
                         is_reconnectable = True
                         break
-            elif exc_class is InterfaceError:
+            elif isinstance(exc, InterfaceError):
                 # InterfaceError is always reconnectable
                 is_reconnectable = True
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -21,6 +22,7 @@ class CreateUserRequest(BaseModel):
 
 
 class UpdateUserRequest(BaseModel):
-    """Update user request model"""
-    username: str = Field(None, max_length=50, description="Username")
-    email: str = Field(None, max_length=100, description="Email address")
+    """Update user request model. All fields are optional; the caller must send
+    at least one field, otherwise the update is a no-op (rejected by the route)."""
+    username: Optional[str] = Field(None, max_length=50, description="Username")
+    email: Optional[str] = Field(None, max_length=100, description="Email address")

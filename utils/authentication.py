@@ -92,8 +92,10 @@ class AuthHandler(object):
             from app import Application
             redis_client = Application.redis_client
             if redis_client:
-                # Default to 7 days if we can't determine remaining TTL
-                ttl = exp_seconds if exp_seconds else 604800
+                # Default to 7 days if we can't determine remaining TTL.
+                # Use "is not None" so an explicit 0 (token already expired)
+                # does not accidentally fall back to the 7-day default.
+                ttl = exp_seconds if exp_seconds is not None else 604800
                 redis_client.set(f"token_blacklist:{token}", "1", expire=ttl)
         except Exception as e:
             logger.error(f"Error revoking token: {e}")

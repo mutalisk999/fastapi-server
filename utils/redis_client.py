@@ -41,13 +41,22 @@ class RedisClient(object):
     def set(self, key: str, value: Any, expire: int = 0):
         try:
             self._ensure_connection()
-            self.redis_client.set(key, value)
-            if expire > 0:
-                self.redis_client.expire(key, expire)
+            # Single SET with EX so the key can never outlive its TTL even if a
+            # separate EXPIRE call were to fail.
+            self.redis_client.set(key, value, ex=expire if expire > 0 else None)
             return True
         except Exception as e:
             logger.error(f"Redis set error: {e}")
             return False
+
+    def incr(self, key: str, amount: int = 1) -> int:
+        """Atomically increment a key and return the new value.
+
+        Unlike most methods here, this raises on Redis failure so callers
+        (e.g. rate limiting) can fall back to an in-memory implementation.
+        """
+        self._ensure_connection()
+        return self.redis_client.incr(key, amount)
 
     def delete(self, key: str):
         try:
@@ -66,155 +75,176 @@ class RedisClient(object):
         except Exception as e:
             logger.error(f"Redis expire error: {e}")
             return False
-    
+
     # Hash operations
     def hset(self, key: str, field: str, value: Any) -> bool:
         try:
+            self._ensure_connection()
             self.redis_client.hset(key, field, value)
             return True
         except Exception as e:
             logger.error(f"Redis hset error: {e}")
             return False
-    
+
     def hget(self, key: str, field: str) -> Any:
         try:
+            self._ensure_connection()
             return self.redis_client.hget(key, field)
         except Exception as e:
             logger.error(f"Redis hget error: {e}")
             return None
-    
+
     def hgetall(self, key: str) -> dict:
         try:
+            self._ensure_connection()
             return self.redis_client.hgetall(key)
         except Exception as e:
             logger.error(f"Redis hgetall error: {e}")
             return {}
-    
+
     def hdel(self, key: str, field: str) -> bool:
         try:
+            self._ensure_connection()
             self.redis_client.hdel(key, field)
             return True
         except Exception as e:
             logger.error(f"Redis hdel error: {e}")
             return False
-    
+
     def hexists(self, key: str, field: str) -> bool:
         try:
+            self._ensure_connection()
             return self.redis_client.hexists(key, field)
         except Exception as e:
             logger.error(f"Redis hexists error: {e}")
             return False
-    
+
     # List operations
     def lpush(self, key: str, *values) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.lpush(key, *values)
         except Exception as e:
             logger.error(f"Redis lpush error: {e}")
             return 0
-    
+
     def rpush(self, key: str, *values) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.rpush(key, *values)
         except Exception as e:
             logger.error(f"Redis rpush error: {e}")
             return 0
-    
+
     def lpop(self, key: str) -> Any:
         try:
+            self._ensure_connection()
             return self.redis_client.lpop(key)
         except Exception as e:
             logger.error(f"Redis lpop error: {e}")
             return None
-    
+
     def rpop(self, key: str) -> Any:
         try:
+            self._ensure_connection()
             return self.redis_client.rpop(key)
         except Exception as e:
             logger.error(f"Redis rpop error: {e}")
             return None
-    
+
     def lrange(self, key: str, start: int, end: int) -> list:
         try:
+            self._ensure_connection()
             return self.redis_client.lrange(key, start, end)
         except Exception as e:
             logger.error(f"Redis lrange error: {e}")
             return []
-    
+
     def llen(self, key: str) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.llen(key)
         except Exception as e:
             logger.error(f"Redis llen error: {e}")
             return 0
-    
+
     # Set operations
     def sadd(self, key: str, *values) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.sadd(key, *values)
         except Exception as e:
             logger.error(f"Redis sadd error: {e}")
             return 0
-    
+
     def srem(self, key: str, *values) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.srem(key, *values)
         except Exception as e:
             logger.error(f"Redis srem error: {e}")
             return 0
-    
+
     def smembers(self, key: str) -> set:
         try:
+            self._ensure_connection()
             return self.redis_client.smembers(key)
         except Exception as e:
             logger.error(f"Redis smembers error: {e}")
             return set()
-    
+
     def sismember(self, key: str, value: Any) -> bool:
         try:
+            self._ensure_connection()
             return self.redis_client.sismember(key, value)
         except Exception as e:
             logger.error(f"Redis sismember error: {e}")
             return False
-    
+
     def scard(self, key: str) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.scard(key)
         except Exception as e:
             logger.error(f"Redis scard error: {e}")
             return 0
-    
+
     # ZSet operations
     def zadd(self, key: str, mapping: dict) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.zadd(key, mapping)
         except Exception as e:
             logger.error(f"Redis zadd error: {e}")
             return 0
-    
+
     def zrem(self, key: str, *values) -> int:
         try:
+            self._ensure_connection()
             return self.redis_client.zrem(key, *values)
         except Exception as e:
             logger.error(f"Redis zrem error: {e}")
             return 0
-    
+
     def zrange(self, key: str, start: int, end: int, withscores: bool = False) -> list:
         try:
+            self._ensure_connection()
             return self.redis_client.zrange(key, start, end, withscores=withscores)
         except Exception as e:
             logger.error(f"Redis zrange error: {e}")
             return []
-    
+
     def zrangebyscore(self, key: str, min_score: float, max_score: float, withscores: bool = False) -> list:
         try:
+            self._ensure_connection()
             return self.redis_client.zrangebyscore(key, min_score, max_score, withscores=withscores)
         except Exception as e:
             logger.error(f"Redis zrangebyscore error: {e}")
             return []
-    
+
     def zscore(self, key: str, value: Any) -> Optional[float]:
         try:
+            self._ensure_connection()
             return self.redis_client.zscore(key, value)
         except Exception as e:
             logger.error(f"Redis zscore error: {e}")

@@ -19,7 +19,9 @@ class NamedThread(threading.Thread):
         try:
             self.status = "running"
             logger.info(f"Thread {self.name} (ID: {self.thread_id}) started")
-            self.function_ptr(self.args)
+            # The task function receives (args, thread) so it can poll
+            # thread.should_stop() for per-thread graceful shutdown.
+            self.function_ptr(self.args, self)
             self.status = "completed"
             logger.info(f"Thread {self.name} (ID: {self.thread_id}) completed successfully")
         except Exception as e:

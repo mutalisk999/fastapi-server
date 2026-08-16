@@ -24,10 +24,11 @@ def handle_sig(sig, frame):
     sys.exit(0)
 
 
-def sample_task(args):
-    """Sample background task"""
+def sample_task(args, thread):
+    """Sample background task. `thread` is the NamedThread instance; polling
+    thread.should_stop() supports both per-thread stop and global shutdown."""
     import time
-    while not Application.global_stop:
+    while not thread.should_stop():
         logger.info("Sample task running...")
         time.sleep(5)
     logger.info("Sample task stopped")

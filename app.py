@@ -78,7 +78,7 @@ class Application(object):
             url=setting.REDIS_URL, max_connections=10
         )
 
-        aes_gcm = AesGcm(Application.config_pass.encode("ascii"))
+        aes_gcm = AesGcm(Application.config_pass.encode("utf-8"))
         database_pass = aes_gcm.decrypt(setting.DATABASE_PASS)
 
         jwt_secret = aes_gcm.decrypt(setting.JWT_SECRET)
@@ -123,6 +123,14 @@ class Application(object):
         api_router.include_router(prefix="/users", router=user_router, tags=["users"])
         api_router.include_router(prefix="/auth", router=auth_router, tags=["auth"])
         app.include_router(prefix="/api", router=api_router)
+        # Middleware order (outer → inner): CORS → error_handler → db_session.
+        # Starlette's add_middleware inserts at index 0, so the LAST registered
+        # middleware is the OUTERMOST. Registering db_session first makes it the
+        # innermost, so a route exception first rolls back the DB transaction in
+        # db_session, then is converted to a JSON error response by error_handler,
+        # and finally gets CORS headers from the outermost CORS middleware.
+        app.middleware("http")(db_session_middleware)
+        app.middleware("http")(error_handler_middleware)
         app.add_middleware(
             CORSMiddleware,
             allow_origins=setting.CORS_ORIGINS,
@@ -130,10 +138,6 @@ class Application(object):
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization"],
         )
-        # Register error handler first (outer), then db session (inner)
-        # This ensures db_session exceptions are caught by error_handler
-        app.middleware("http")(error_handler_middleware)
-        app.middleware("http")(db_session_middleware)
 
         # Reinitialize logger with config parameters
         init_logger()

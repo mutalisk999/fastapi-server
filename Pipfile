@@ -16,7 +16,6 @@ redis = "==7.2.1"
 captcha = "==0.7.1"
 pydantic = "==2.12.5"
 pydantic-settings = "==2.13.1"
-playhouse = "==0.1.0"
 bcrypt = "==5.0.0"
 
 

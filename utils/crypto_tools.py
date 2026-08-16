@@ -26,9 +26,3 @@ class AesGcm(object):
         ciphertext_bytes = data[12:]
         plaintext = aesgcm.decrypt(nonce, ciphertext_bytes, None)
         return plaintext.decode("utf-8")
-
-
-# Backward-compatible aliases
-Aes128Cbc = AesGcm
-aes128_cbc_encrypt = AesGcm.encrypt
-aes128_cbc_decrypt = AesGcm.decrypt

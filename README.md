@@ -136,6 +136,11 @@ POST /api/auth/login
   "username": "admin",
   "password": "admin123"
 }
+```
+> **Note**: `admin/admin123` is a **development-only** mock credential. It is
+> accepted only while `MOCK_AUTH_ENABLED=true` (the default in dev/testing).
+> The production config forces `MOCK_AUTH_ENABLED=false`, which rejects all
+> logins until a real user store is wired in.
 
 Response:
 {
@@ -220,6 +225,7 @@ USE_CONFIG=production python api_server.py
 
 ## Security Considerations
 
+- The `admin/admin123` login is a **dev-only mock**; production sets `MOCK_AUTH_ENABLED=false` and rejects all logins until a real user store exists
 - All sensitive configuration values should be encrypted before storing in `.env` files
 - The config password is entered at runtime and never stored
 - JWT tokens expire after 7 days by default

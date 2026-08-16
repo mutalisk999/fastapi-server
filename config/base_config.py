@@ -28,6 +28,10 @@ class BaseConfig(BaseSettings):
     SERVER_HOST: str = "0.0.0.0"
     SERVER_PORT: int = 7788
 
+    # Mock authentication (dev/testing only). When False, the login endpoint
+    # rejects all users until a real user store is wired in.
+    MOCK_AUTH_ENABLED: bool = True
+
     # Logger configuration
     LOG_FILE_NAME: Optional[str] = "app.log"
     LOG_LEVEL: Optional[str] = "INFO"

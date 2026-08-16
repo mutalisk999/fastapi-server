@@ -10,7 +10,15 @@
       "Bash(python *)",
       "Bash(pip --version)",
       "Bash(pipenv --version)",
-      "Bash(pip index *)"
+      "Bash(pip index *)",
+      "Bash(pip show *)",
+      "Bash(pip install *)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff .claude/settings.local.json)",
+      "Bash(git --no-pager diff Pipfile utils/authentication.py api_server.py)",
+      "Bash(git --no-pager diff app.py database/connector.py)",
+      "Bash(git --no-pager diff services/auth_service.py)",
+      "Bash(echo \"=== flake8 exit: $? ===\")"
     ]
   }
 }

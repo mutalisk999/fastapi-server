@@ -47,8 +47,13 @@ def create_user(user_data: CreateUserRequest, current_user: Dict[str, Any] = Dep
 def update_user(user_id: str, user_data: UpdateUserRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Update user information"""
     try:
-        updated_user = user_service.update_user(user_id, user_data.model_dump(exclude_none=True))
+        updates = user_data.model_dump(exclude_none=True)
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updated_user = user_service.update_user(user_id, updates)
         return updated_user
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating user: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

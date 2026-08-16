@@ -12,7 +12,12 @@ class ThreadManager:
         self.threads: Dict[str, NamedThread] = {}
 
     def start_thread(self, thread_id: str, name: str, function: Callable, args: Any = None) -> bool:
-        """Start a new thread"""
+        """Start a new thread.
+
+        The task `function` is called as `function(args, thread)`, where `thread`
+        is the wrapping NamedThread. Tasks should poll `thread.should_stop()` in
+        their loop to support both per-thread (stop_thread) and global shutdown.
+        """
         try:
             if thread_id in self.threads:
                 logger.warning(f"Thread with ID {thread_id} already exists")
