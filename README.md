@@ -33,7 +33,8 @@ fastapi-server/
 ├── .env.dev            # Development environment variables
 ├── .env.testing        # Testing environment variables
 ├── .env.prod           # Production environment variables
-├── requirements.txt    # Python dependencies
+├── Pipfile             # Python dependencies (Pipenv)
+├── Pipfile.lock        # Locked dependency versions
 ├── api_server.py       # Application entry point
 └── app.py              # Application initialization, middleware, routing
 ```
@@ -54,9 +55,11 @@ fastapi-server/
    cd fastapi-server
    ```
 
-2. **Install dependencies**:
+2. **Install dependencies** (with [Pipenv](https://pipenv.pypa.io/)):
    ```bash
-   pip install -r requirements.txt
+   pip install pipenv
+   pipenv install            # production dependencies
+   pipenv install --dev      # development dependencies (pytest, black, flake8, mypy)
    ```
 
 3. **Encrypt sensitive configuration values**:
@@ -110,12 +113,12 @@ fastapi-server/
 
 5. **Run the application**:
    ```bash
-   python api_server.py
+   pipenv run python api_server.py
    ```
    You will be prompted to enter the config password for decrypting sensitive information (JWT_SECRET, DATABASE_PASS).
    For non-interactive environments (systemd, Docker, CI), set the password via the `CONFIG_PASS` environment variable instead:
    ```bash
-   CONFIG_PASS=your_password python api_server.py
+   CONFIG_PASS=your_password pipenv run python api_server.py
    ```
 
 ## API Endpoints
@@ -226,7 +229,7 @@ Custom `ReconnectMixinNew` wraps Peewee database drivers to automatically reconn
 ### Specifying Environment
 
 ```bash
-USE_CONFIG=production python api_server.py
+USE_CONFIG=production pipenv run python api_server.py
 ```
 
 ## Security Considerations
