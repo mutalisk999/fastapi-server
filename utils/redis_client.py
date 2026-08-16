@@ -4,14 +4,33 @@ from typing import Any, Optional
 
 import redis
 from redis import ConnectionPool
-from redis.client import Redis, StrictRedis
+from redis.client import Redis
 from utils.logger import logger
 
+# Atomic INCR + EXPIRE-on-first so a rate-limit key can never outlive its window
+# even if the EXPIRE step were to fail.
+_INCR_EXPIRE_SCRIPT = """
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+"""
+
 class RedisClient(object):
-    def __init__(self, url: str = "redis://127.0.0.1:6379/0", max_connections: int = 10):
-        self.client_pool: ConnectionPool = redis.ConnectionPool.from_url(url=url, max_connections=max_connections)
-        self.redis_client: StrictRedis = redis.StrictRedis(connection_pool=self.client_pool)
+    def __init__(self, url: str = "redis://127.0.0.1:6379/0", max_connections: int = 10,
+                 socket_timeout: float = 3.0, socket_connect_timeout: float = 3.0):
+        # Non-None timeouts prevent a stalled (but not down) Redis from blocking
+        # requests indefinitely.
+        self.client_pool: ConnectionPool = redis.ConnectionPool.from_url(
+            url=url, max_connections=max_connections,
+            socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_connect_timeout,
+        )
+        self.redis_client: Redis = redis.Redis(connection_pool=self.client_pool)
         self._connected = False
+        # Only wraps the script; nothing is sent to Redis until it is invoked.
+        self._limit_script = self.redis_client.register_script(_INCR_EXPIRE_SCRIPT)
         # Test connection lazily - don't block startup
         try:
             self.redis_client.ping()
@@ -57,6 +76,14 @@ class RedisClient(object):
         """
         self._ensure_connection()
         return self.redis_client.incr(key, amount)
+
+    def incr_with_expire(self, key: str, expire_seconds: int) -> int:
+        """Atomically increment a key and return the new value, setting the
+        key's TTL on the first hit. The INCR and EXPIRE run as one Lua script,
+        so the key can never persist without a TTL. Raises on Redis failure.
+        """
+        self._ensure_connection()
+        return self._limit_script(keys=[key], args=[expire_seconds])
 
     def delete(self, key: str):
         try:

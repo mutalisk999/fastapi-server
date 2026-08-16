@@ -3,8 +3,8 @@
 
 import io
 import base64
+import secrets
 import string
-import random
 from captcha.image import ImageCaptcha
 
 
@@ -22,13 +22,14 @@ class ImageCaptchaSingleton:
 
 
 def generate_random_string(gen_type: int = 1, size: int = 4):
+    # Use secrets instead of random so captcha codes are not predictable.
     if gen_type == 1:
         choice = string.digits
     elif gen_type == 2:
         choice = string.ascii_letters
     else:
         choice = string.ascii_letters + string.digits
-    return ''.join(random.choice(choice) for _ in range(size))
+    return ''.join(secrets.choice(choice) for _ in range(size))
 
 
 def get_image_captcha(captcha_code: str) -> bytes:

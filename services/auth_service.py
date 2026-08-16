@@ -47,9 +47,12 @@ class AuthService:
                 )
 
             # TEMP: mock user store. Replace with a real database lookup.
-            if username == "admin" and password_tools.verify_password(
+            # Always run bcrypt (even for unknown usernames) so response timing
+            # does not reveal which usernames exist.
+            password_ok = password_tools.verify_password(
                 password, self._MOCK_ADMIN_PASSWORD_HASH
-            ):
+            )
+            if username == "admin" and password_ok:
                 # Generate JWT token
                 token = auth_handler.generate_token(username)
                 return {

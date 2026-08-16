@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -13,6 +16,7 @@ from controller.user_controller import user_router
 from controller.auth_controller import auth_router
 from database import database_proxy
 from database.connector import ReconnectMySQLDatabase, ReconnectPooledMySQLDatabase
+from thread_task import thread_manager
 from utils.authentication import auth_handler
 from utils.crypto_tools import AesGcm
 from utils.logger import init_logger, logger
@@ -20,10 +24,28 @@ from utils.logger import init_logger, logger
 from utils.redis_client import RedisClient
 
 
-async def db_session_middleware(request: Request, call_next):
-    """Middleware to handle database transactions for each request."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Graceful shutdown: tell background threads to stop and wait for them.
+    # Runs via uvicorn's lifespan when the server stops (Ctrl+C / SIGTERM).
+    Application.global_stop = True
     try:
-        request.state.db = database_proxy
+        await asyncio.to_thread(thread_manager.stop_all_threads)
+    except Exception as e:
+        logger.error(f"Error stopping threads during shutdown: {e}")
+
+
+async def db_session_middleware(request: Request, call_next):
+    """Middleware to handle database transactions for each request.
+
+    NOTE: peewee connections are thread-local. This async middleware runs on the
+    event-loop thread, so its commit/rollback only affects async endpoints
+    (which share that thread). For sync endpoints FastAPI runs in a threadpool
+    worker thread, so use the @db_transaction decorator (database.db_transaction)
+    instead of relying on this middleware.
+    """
+    try:
         response = await call_next(request)
         # Commit successful transactions if any
         try:
@@ -79,16 +101,32 @@ class Application(object):
         )
 
         aes_gcm = AesGcm(Application.config_pass.encode("utf-8"))
-        database_pass = aes_gcm.decrypt(setting.DATABASE_PASS)
 
-        jwt_secret = aes_gcm.decrypt(setting.JWT_SECRET)
+        # Validate required secrets before decrypting, so a missing or non-hex
+        # value fails startup with a clear message instead of a cryptic error.
+        if not setting.DATABASE_PASS:
+            raise ValueError("DATABASE_PASS is not set in the environment")
+        if not setting.JWT_SECRET:
+            raise ValueError("JWT_SECRET is not set in the environment")
+        try:
+            database_pass = aes_gcm.decrypt(setting.DATABASE_PASS)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                "Cannot decrypt DATABASE_PASS - check the config password and "
+                f"that the env value is AES-256-GCM encrypted hex. ({e})"
+            )
+        try:
+            jwt_secret = aes_gcm.decrypt(setting.JWT_SECRET)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                "Cannot decrypt JWT_SECRET - check the config password and "
+                f"that the env value is AES-256-GCM encrypted hex. ({e})"
+            )
         auth_handler.initialize(jwt_secret)
 
         if setting.DATABASE_POOL_SIZE <= 1:
             db = ReconnectMySQLDatabase(
                 setting.DATABASE_NAME,
-                autocommit=False,
-                autorollback=False,
                 **{
                     "host": setting.DATABASE_HOST,
                     "port": setting.DATABASE_PORT,
@@ -104,8 +142,6 @@ class Application(object):
                 setting.DATABASE_NAME,
                 max_connections=setting.DATABASE_POOL_SIZE,
                 stale_timeout=300,
-                autocommit=False,
-                autorollback=False,
                 **{
                     "host": setting.DATABASE_HOST,
                     "port": setting.DATABASE_PORT,
@@ -117,7 +153,7 @@ class Application(object):
             )
             database_proxy.initialize(db_pool)
 
-        app = FastAPI()
+        app = FastAPI(lifespan=lifespan)
         api_router = APIRouter()
         api_router.include_router(prefix="/mock", router=mock_router, tags=["mock"])
         api_router.include_router(prefix="/users", router=user_router, tags=["users"])

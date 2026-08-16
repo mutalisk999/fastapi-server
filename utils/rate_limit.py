@@ -32,14 +32,12 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60):
             client_ip = request.client.host if request.client else "unknown"
             key = f"rate_limit:{func.__name__}:{client_ip}"
 
-            # Try Redis first: atomic INCR, with EXPIRE set once on the first hit.
+            # Try Redis first: atomic INCR + EXPIRE-on-first (single Lua script).
             try:
                 from app import Application
                 redis_client = Application.redis_client
                 if redis_client:
-                    count = redis_client.incr(key)
-                    if count == 1:
-                        redis_client.expire(key, window_seconds)
+                    count = redis_client.incr_with_expire(key, window_seconds)
                     if count > max_requests:
                         logger.warning(f"Rate limit exceeded for {client_ip} on {func.__name__}")
                         raise HTTPException(

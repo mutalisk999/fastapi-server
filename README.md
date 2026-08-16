@@ -113,6 +113,10 @@ fastapi-server/
    python api_server.py
    ```
    You will be prompted to enter the config password for decrypting sensitive information (JWT_SECRET, DATABASE_PASS).
+   For non-interactive environments (systemd, Docker, CI), set the password via the `CONFIG_PASS` environment variable instead:
+   ```bash
+   CONFIG_PASS=your_password python api_server.py
+   ```
 
 ## API Endpoints
 
@@ -192,6 +196,8 @@ Custom `ReconnectMixinNew` wraps Peewee database drivers to automatically reconn
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
+| USE_CONFIG | string | development | Environment selector (`development`/`testing`/`production`) |
+| CONFIG_PASS | string | - | Config password for decrypting secrets (env var, overrides interactive prompt) |
 | JWT_SECRET | string | - | JWT signing secret (encrypted) |
 | DATABASE_USER | string | - | Database username |
 | DATABASE_PASS | string | - | Database password (encrypted) |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from services.user_service import user_service
 from services.auth_service import auth_service
@@ -9,11 +9,13 @@ from utils.schemas import CreateUserRequest, UpdateUserRequest
 from utils.logger import logger
 
 user_router = APIRouter()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Dict[str, Any]:
     """Get current user"""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     token = credentials.credentials
     user_info = auth_service.verify_token(token)
     if not user_info:

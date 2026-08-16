@@ -18,7 +18,9 @@
       "Bash(git --no-pager diff Pipfile utils/authentication.py api_server.py)",
       "Bash(git --no-pager diff app.py database/connector.py)",
       "Bash(git --no-pager diff services/auth_service.py)",
-      "Bash(echo \"=== flake8 exit: $? ===\")"
+      "Bash(echo \"=== flake8 exit: $? ===\")",
+      "Bash(pipenv lock *)",
+      "Bash(git *)"
     ]
   }
 }

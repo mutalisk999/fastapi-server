@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from services.auth_service import auth_service
@@ -7,7 +8,7 @@ from utils.rate_limit import rate_limit
 from utils.schemas import LoginRequest, RefreshTokenRequest
 
 auth_router = APIRouter()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 @auth_router.post("/login")
@@ -40,8 +41,10 @@ async def refresh_token(token_data: RefreshTokenRequest):
 
 
 @auth_router.post("/logout")
-async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """Logout - revoke token"""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         token = credentials.credentials
         auth_service.logout(token)
