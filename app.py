@@ -110,19 +110,25 @@ class Application(object):
             raise ValueError("JWT_SECRET is not set in the environment")
         try:
             database_pass = aes_gcm.decrypt(setting.DATABASE_PASS)
-        except (TypeError, ValueError) as e:
+        except Exception as e:
+            # Includes ValueError (bad hex) and cryptography InvalidTag (wrong
+            # config password) - fail startup with a clear, actionable message.
             raise ValueError(
                 "Cannot decrypt DATABASE_PASS - check the config password and "
-                f"that the env value is AES-256-GCM encrypted hex. ({e})"
+                f"that the env value is AES-256-GCM encrypted hex. ({type(e).__name__}: {e})"
             )
         try:
             jwt_secret = aes_gcm.decrypt(setting.JWT_SECRET)
-        except (TypeError, ValueError) as e:
+        except Exception as e:
             raise ValueError(
                 "Cannot decrypt JWT_SECRET - check the config password and "
-                f"that the env value is AES-256-GCM encrypted hex. ({e})"
+                f"that the env value is AES-256-GCM encrypted hex. ({type(e).__name__}: {e})"
             )
         auth_handler.initialize(jwt_secret)
+        if len(jwt_secret.encode("utf-8")) < 32:
+            logger.warning(
+                "JWT_SECRET is shorter than 32 bytes - HMAC-SHA256 keys should be at least 32 bytes."
+            )
 
         if setting.DATABASE_POOL_SIZE <= 1:
             db = ReconnectMySQLDatabase(
