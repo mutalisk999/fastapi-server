@@ -5,7 +5,12 @@
       "Bash(git add *)",
       "Bash(git rm *)",
       "Bash(python -c ' *)",
-      "Bash(python -m pytest tests/ -v --tb=short)"
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m unittest discover tests -v)",
+      "Bash(python *)",
+      "Bash(pip --version)",
+      "Bash(pipenv --version)",
+      "Bash(pip index *)"
     ]
   }
 }
