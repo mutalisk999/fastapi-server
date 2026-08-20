@@ -87,8 +87,11 @@ async def db_session_middleware(request: Request, call_next):
                 # pool instead of closing it, so this is safe (and required)
                 # for both pooled and non-pooled databases.
                 database_proxy.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                f"Failed to release database connection for "
+                f"{request.method} {request.url.path} ({type(e).__name__}: {e})"
+            )
 
 
 async def error_handler_middleware(request: Request, call_next):

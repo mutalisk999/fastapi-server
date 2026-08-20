@@ -5,6 +5,7 @@ import asyncio
 from functools import wraps
 
 from peewee import *
+from utils.logger import logger
 
 database_proxy = DatabaseProxy()
 
@@ -30,8 +31,10 @@ def _close_request_connection():
     try:
         if not database_proxy.is_closed():
             database_proxy.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            f"Failed to release database connection ({type(e).__name__}: {e})"
+        )
 
 
 def shutdown_database():

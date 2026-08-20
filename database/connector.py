@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# encoding: utf-8 -*-
+
+import time
 
 from peewee import InterfaceError, SENTINEL  # type: ignore
 from peewee import SqliteDatabase, MySQLDatabase, PostgresqlDatabase
@@ -9,6 +11,14 @@ from playhouse.pool import (
     PooledMySQLDatabase,
     PooledPostgresqlDatabase,
 )
+
+# How long a thread waits for a free pooled connection before failing.
+# playhouse pools do NOT queue: without this, a burst of concurrent requests
+# exceeding max_connections fails immediately with "Exceeded maximum
+# connections". Since connections are returned per-request, the wait is
+# normally short.
+POOL_ACQUIRE_TIMEOUT = 3.0
+_ACQUIRE_POLL_INTERVAL = 0.05
 
 
 class ReconnectMixinNew(ReconnectMixin):
@@ -47,11 +57,37 @@ class ReconnectMixinNew(ReconnectMixin):
             return super(ReconnectMixin, self).execute_sql(sql, params, commit)
 
 
+class BlockingPoolMixin(object):
+    """Make a playhouse pool wait briefly for a free connection instead of
+    raising "Exceeded maximum connections" on short concurrency bursts.
+
+    The retry loop lives in connect(), NOT _connect(): peewee calls _connect()
+    while holding Database._lock, so sleeping there would block other threads
+    from returning their connections (close() needs the same lock) and every
+    waiter would time out. Retrying in connect() keeps each attempt short and
+    sleeps with the lock released.
+    """
+
+    def connect(self, reuse_if_open=False):
+        deadline = time.monotonic() + POOL_ACQUIRE_TIMEOUT
+        while True:
+            try:
+                return super().connect(reuse_if_open)
+            except ValueError as exc:
+                if "Exceeded maximum connections" not in str(exc):
+                    raise
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(_ACQUIRE_POLL_INTERVAL)
+
+
 class ReconnectSqliteDatabase(ReconnectMixinNew, SqliteDatabase):
     pass
 
 
-class ReconnectPooledSqliteDatabase(ReconnectMixinNew, PooledSqliteDatabase):
+class ReconnectPooledSqliteDatabase(
+    BlockingPoolMixin, ReconnectMixinNew, PooledSqliteDatabase
+):
     pass
 
 
@@ -59,7 +95,9 @@ class ReconnectMySQLDatabase(ReconnectMixinNew, MySQLDatabase):
     pass
 
 
-class ReconnectPooledMySQLDatabase(ReconnectMixinNew, PooledMySQLDatabase):
+class ReconnectPooledMySQLDatabase(
+    BlockingPoolMixin, ReconnectMixinNew, PooledMySQLDatabase
+):
     pass
 
 
@@ -67,5 +105,7 @@ class ReconnectPostgresqlDatabase(ReconnectMixinNew, PostgresqlDatabase):
     pass
 
 
-class ReconnectPooledPostgresqlDatabase(ReconnectMixinNew, PooledPostgresqlDatabase):
+class ReconnectPooledPostgresqlDatabase(
+    BlockingPoolMixin, ReconnectMixinNew, PooledPostgresqlDatabase
+):
     pass
