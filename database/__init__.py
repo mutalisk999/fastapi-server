@@ -19,18 +19,35 @@ class BaseModel(Model):
 
 
 def _close_request_connection():
-    """Close the current thread's connection after a request for non-pooled DBs.
+    """Release the current thread's connection after a request.
 
     Must be called from the same thread that ran the queries, because peewee
-    connections are thread-local.
+    connections are thread-local. For playhouse pooled databases close()
+    RETURNS the connection to the pool (it does not close the socket), so this
+    must also run for pooled DBs - skipping it would leave the connection
+    checked out of the pool forever.
     """
     try:
         if not database_proxy.is_closed():
-            db_obj = database_proxy.obj
-            if db_obj and not hasattr(db_obj, "max_connections"):
-                database_proxy.close()
+            database_proxy.close()
     except Exception:
         pass
+
+
+def shutdown_database():
+    """Close every connection owned by the database at process shutdown.
+
+    For playhouse pooled databases close_all() closes both idle and in-use
+    connections; for a plain database it falls back to closing this thread's
+    connection.
+    """
+    db_obj = getattr(database_proxy, "obj", None)
+    if db_obj is None:
+        return
+    if hasattr(db_obj, "close_all"):  # playhouse PooledDatabase
+        db_obj.close_all()
+    elif not db_obj.is_closed():
+        db_obj.close()
 
 
 def db_transaction(func):
@@ -47,16 +64,22 @@ def db_transaction(func):
     """
     @wraps(func)
     async def async_wrapper(*args, **kwargs):
-        with database_proxy.atomic():
-            result = await func(*args, **kwargs)
-        _close_request_connection()
-        return result
+        try:
+            with database_proxy.atomic():
+                result = await func(*args, **kwargs)
+            return result
+        finally:
+            # Must run even when the endpoint raises, or the connection is
+            # never returned to the pool / closed.
+            _close_request_connection()
 
     @wraps(func)
     def sync_wrapper(*args, **kwargs):
-        with database_proxy.atomic():
-            result = func(*args, **kwargs)
-        _close_request_connection()
-        return result
+        try:
+            with database_proxy.atomic():
+                result = func(*args, **kwargs)
+            return result
+        finally:
+            _close_request_connection()
 
     return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper

@@ -14,7 +14,7 @@ from typing import Union
 from controller import mock_router
 from controller.user_controller import user_router
 from controller.auth_controller import auth_router
-from database import database_proxy
+from database import database_proxy, shutdown_database
 from database.connector import ReconnectMySQLDatabase, ReconnectPooledMySQLDatabase
 from thread_task import thread_manager
 from utils.authentication import auth_handler
@@ -34,6 +34,18 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(thread_manager.stop_all_threads)
     except Exception as e:
         logger.error(f"Error stopping threads during shutdown: {e}")
+    # Drain the database connection pool (closes idle and in-use connections).
+    # Wrapped in to_thread because closing sockets is blocking network I/O.
+    try:
+        await asyncio.to_thread(shutdown_database)
+    except Exception as e:
+        logger.error(f"Error closing database connections during shutdown: {e}")
+    # Disconnect all pooled Redis connections.
+    if Application.redis_client is not None:
+        try:
+            await asyncio.to_thread(Application.redis_client.client_pool.disconnect)
+        except Exception as e:
+            logger.error(f"Error closing Redis connections during shutdown: {e}")
 
 
 async def db_session_middleware(request: Request, call_next):
@@ -51,24 +63,30 @@ async def db_session_middleware(request: Request, call_next):
         try:
             if not database_proxy.is_closed():
                 database_proxy.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                f"Database commit failed for {request.method} {request.url.path} "
+                f"({type(e).__name__}: {e})"
+            )
         return response
     except Exception:
         # Rollback on exception
         try:
             if not database_proxy.is_closed():
                 database_proxy.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                f"Database rollback failed for {request.method} {request.url.path} "
+                f"({type(e).__name__}: {e})"
+            )
         raise
     finally:
         try:
             if not database_proxy.is_closed():
-                db_obj = database_proxy.obj
-                # For pooled databases, the pool manages connections
-                if db_obj and not hasattr(db_obj, "max_connections"):
-                    database_proxy.close()
+                # For pooled databases close() returns the connection to the
+                # pool instead of closing it, so this is safe (and required)
+                # for both pooled and non-pooled databases.
+                database_proxy.close()
         except Exception:
             pass
 
